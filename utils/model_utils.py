@@ -1,3 +1,9 @@
+# TODO:
+# - proper logging
+# - add noisy loop
+# - integrate methods
+# - unify __evaluate and score methods
+
 from typing import Dict, List, Optional, Tuple, Type
 from transformers import AutoModelForSequenceClassification, AutoConfig, AutoTokenizer, BatchEncoding, get_scheduler
 import torch
@@ -40,7 +46,7 @@ class NoisyStudent:
 
     def __init_model(
         self,
-    ) -> Tuple[Type[torch.AutoModelForSequenceClassification], Type[torch.AdamW], Type[torch.lr_scheduler]]:
+    ) -> torch.AutoModelForSequenceClassification:
         model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_bert_name)
 
         # class attributes referring to dropout are not the same for bert and distilbert
