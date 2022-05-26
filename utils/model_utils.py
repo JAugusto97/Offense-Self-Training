@@ -17,7 +17,7 @@ from .data_utils import BertDataset, WeakLabelDataset
 class NoisyStudent:
     def __init__(
         self,
-        pretrained_bert_name: str = "bert-base-cased",
+        pretrained_bert_name: Optional[str] = "bert-base-cased",
         max_seq_len: Optional[int] = 256,
         attention_dropout: Optional[float] = None,
         classifier_dropout: Optional[float] = None,
@@ -43,7 +43,7 @@ class NoisyStudent:
 
     def __init_model(
         self, attention_dropout: Optional[float], classifier_dropout: Optional[float]
-    ) -> torch.AutoModelForSequenceClassification:
+    ) -> AutoModelForSequenceClassification:
         model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_bert_name)
 
         # class attributes referring to dropout are not the same for bert and distilbert
@@ -287,7 +287,7 @@ class NoisyStudent:
             with open(f"train_history-model{self.num_noisy_iteration}.json") as f:
                 json.dump(historic_loss, f)
 
-    def predict_batch(self, dataloader: DataLoader) -> List[np.array, np.array]:
+    def predict_batch(self, dataloader: DataLoader) -> List[np.array]:
         self.model.eval()
         all_logits = []
 

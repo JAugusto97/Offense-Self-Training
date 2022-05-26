@@ -1,8 +1,9 @@
+import logging
 import random
 from typing import Optional
+
 import numpy as np
 import torch
-import logging
 
 
 def get_logger(level: Optional[str] = "debug", filename: Optional[str] = None) -> logging.Logger:
