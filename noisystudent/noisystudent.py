@@ -27,9 +27,9 @@ class BertDataset(Dataset):
 
 
 class WeakLabelDataset(Dataset):
-    def __init__(self, text: str, augmented_text: Optional[str], labels=None):
-        self.text = text
-        self.augmented_text = augmented_text
+    def __init__(self, df, labels=None):
+        self.text = df.iloc[:, 0]
+        self.augmented_text = df.iloc[:, 1]
         self.labels = labels
 
     def __getitem__(self, idx: int) -> Dict:
@@ -55,18 +55,22 @@ class NoisyStudent:
         classifier_dropout: Optional[float] = None,
         weight_decay: Optional[float] = 1e-2,
         num_train_epochs: Optional[int] = 2,
+        batch_size: Optional[int] = 32,
         learning_rate: Optional[float] = 5e-5,
         warmup_ratio: Optional[float] = 0.15,
         device: Optional[str] = None,
     ) -> None:
         if device is None:
             self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        else:
+            self.device = torch.device(device)
         self.pretrained_bert_name = pretrained_bert_name
         self.max_seq_len = max_seq_len
         self.attention_dropout = attention_dropout
         self.classifier_dropout = classifier_dropout
         self.weight_decay = weight_decay
         self.num_train_epochs = num_train_epochs
+        self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.warmup_ratio = warmup_ratio
         self.tokenizer = self.__init_tokenizer()
@@ -156,9 +160,10 @@ class NoisyStudent:
         is_student=False,
         dump_train_history: Optional[bool] = True,
         clip_grad: Optional[bool] = True,
-        val_dataloader: Optional[DataLoader] = None,
+        dev_dataloader: Optional[DataLoader] = None,
         weak_label_dataloader: Optional[DataLoader] = None,
         unl_to_label_batch_ratio: Optional[float] = None,
+        use_augmentation: Optional[bool] = True,
     ):
         optimizer, scheduler = self.__get_optimizer(train_dataloader)
         progress_bar = tqdm(range(self.num_train_epochs * len(train_dataloader)))
@@ -210,7 +215,7 @@ class NoisyStudent:
                 output = self.model(**batch_inputs)
                 # if model is student, train with the noised data aswell
                 if is_student:
-                    text_col = "augmented_text" if self.has_augmentation else "text"  # TODO: improve this
+                    text_col = "augmented_text" if use_augmentation else "text"  # TODO: improve this
                     unl_logits = []
                     unl_labels = []
 
@@ -289,7 +294,7 @@ class NoisyStudent:
             # Calculate the average loss over the entire training data
             avg_train_loss = total_loss / len(train_dataloader)
             if evaluate_during_training:
-                val_loss, val_accuracy, _ = self.score(self.model, val_dataloader)
+                val_loss, val_accuracy, _ = self.score(self.model, dev_dataloader)
                 time_elapsed = time.time() - t0_epoch
 
                 if is_student:
@@ -497,6 +502,7 @@ class NoisyStudent:
         increase_attention_dropout_amount: Optional[float] = None,
         increase_classifier_dropout_amount: Optional[float] = None,
         increase_confidence_threshold_amount: Optional[float] = None,
+        use_augmentation: Optional[bool] = True,
     ):
         # get dataloaders
         train_dataloader = self.__get_dataloader_from_df(train_df)
@@ -521,12 +527,13 @@ class NoisyStudent:
             dev_dataloader=dev_dataloader,
             evaluate_during_training=True,
             is_student=False,
+            use_augmentation=use_augmentation,
         )
 
         _, acc, f1 = self.score(test_dataloader)
         logging.info(f"F1-Score: {f1} - Accuracy: {acc}")
 
-        for it in range(num_iters):
+        for _ in range(num_iters):
             weak_label_dataloader, num_new_examples_pos, num_new_examples_neg = self.__get_weak_labels(
                 unlabeled_dataloader, current_confidence_threshold
             )
@@ -551,6 +558,7 @@ class NoisyStudent:
                 is_student=True,
                 weak_label_dataloader=weak_label_dataloader,
                 unl_to_label_batch_ratio=unl_to_label_batch_ratio,
+                use_augmentation=use_augmentation,
             )
 
             _, acc, f1 = self.score(test_dataloader)

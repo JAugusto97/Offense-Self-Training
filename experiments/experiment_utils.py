@@ -123,7 +123,7 @@ def load_olid() -> Tuple[pd.DataFrame]:
     train_path = os.path.join(path, "olid-training-v1.0.tsv")
     test_path = os.path.join(path, "testset-levela.tsv")
     test_labels_path = os.path.join(path, "labels-levela.csv")
-    unlabeled_path = os.path.join("dataset", "tweets_augmented.csv")
+    unlabeled_path = os.path.join("datasets", "tweets_augmented.csv")
 
     train_df = pd.read_csv(train_path, engine="python", sep="\t")[["tweet", "subtask_a"]]
     train_df["subtask_a"] = train_df["subtask_a"].apply(lambda x: 1 if x == "OFF" else 0)
