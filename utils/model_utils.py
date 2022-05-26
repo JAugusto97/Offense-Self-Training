@@ -1,20 +1,17 @@
-# TODO:
-# - add noisy loop
-# - integrate methods
-
-from typing import Dict, List, Optional, Tuple, Type
-from idna import valid_contextj
-from transformers import AutoModelForSequenceClassification, AutoConfig, AutoTokenizer, BatchEncoding, get_scheduler
-import torch
-from torch.utils.data import RandomSampler, DataLoader
-import pandas as pd
-from data_utils import BertDataset, WeakLabelDataset
-from tqdm import tqdm
-import time
 import json
-import numpy as np
-from sklearn.metrics import f1_score
 import logging
+import time
+from typing import List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import torch
+from sklearn.metrics import f1_score
+from torch.utils.data import DataLoader, RandomSampler
+from tqdm import tqdm
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, BatchEncoding, get_scheduler
+
+from .data_utils import BertDataset, WeakLabelDataset
 
 
 class NoisyStudent:
