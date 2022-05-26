@@ -1,8 +1,6 @@
 # TODO:
-# - proper logging
 # - add noisy loop
 # - integrate methods
-# - unify __evaluate and score methods
 
 from typing import Dict, List, Optional, Tuple, Type
 from transformers import AutoModelForSequenceClassification, AutoConfig, AutoTokenizer, BatchEncoding, get_scheduler
@@ -15,6 +13,7 @@ import time
 import json
 import numpy as np
 from sklearn.metrics import f1_score
+import logging
 
 
 class NoisyStudent:
@@ -25,7 +24,7 @@ class NoisyStudent:
         attention_dropout: Optional[float] = None,
         classifier_dropout: Optional[float] = None,
         weight_decay: Optional[float] = 1e-2,
-        num_train_epochs: Optional[int] = 2,
+        num_train_epoch: Optional[int] = 2,
         learning_rate: Optional[float] = 5e-5,
         warmup_ratio: Optional[float] = 0.15,
         device: Optional[str] = None,
@@ -120,33 +119,6 @@ class NoisyStudent:
 
         return optimizer, scheduler
 
-    def __evaluate(self, dev_dataloader: DataLoader) -> Tuple[float, float]:
-        self.model.eval()
-
-        val_accuracy = []
-        val_loss = []
-
-        for batch in dev_dataloader:
-            batch_inputs = {k: v.to(self.device) for k, v in batch.items()}
-
-            with torch.no_grad():
-                output = self.model(**batch_inputs)
-                logits = output.logits
-                loss = output.loss
-
-            val_loss.append(loss.item())
-
-            preds = torch.argmax(logits, dim=1).flatten()
-            labels = batch_inputs["labels"]
-
-            accuracy = (preds == labels).cpu().numpy().mean() * 100
-            val_accuracy.append(accuracy)
-
-        val_loss = np.mean(val_loss)
-        val_accuracy = np.mean(val_accuracy)
-
-        return val_loss, val_accuracy
-
     def __train(
         self,
         train_dataloader: DataLoader,
@@ -161,23 +133,23 @@ class NoisyStudent:
         optimizer, scheduler = self.__get_optimizer(train_dataloader)
         progress_bar = tqdm(range(self.num_train_epochs * len(train_dataloader)))
         print_each_n_steps = int(len(train_dataloader) // 4)
-        log("Start training...\n")
+        logging.info("Start training...\n")
 
         historic_loss = {"loss": [], "labeled_loss": [], "unlabeled_loss": [], "steps": [], "unl_steps": []}
         for epoch_i in range(self.num_train_epochs):
             if is_student:
-                log(
+                logging.info(
                     f"{'Epoch':^7} | {'Labeled Batch':^14} | {'Unlabeled Batch':^16} | "
                     f"{'Train Loss':^11} | {'Labeled Loss':^13} | "
                     f"{'Unlabeled Loss':^15} | {'Val Loss':^10} | {'Val Acc':^9} | {'Elapsed':^9}"
                 )
-                log("-" * 130)
+                logging.info("-" * 130)
             else:
-                log(
+                logging.info(
                     f"{'Epoch':^7} | {'Train Batch':^12} | "
                     f"{'Train Loss':^12} | {'Val Loss':^10} | {'Val Acc':^9} | {'Elapsed':^9}"
                 )
-                log("-" * 80)
+                logging.info("-" * 80)
 
             # measure the elapsed time of each epoch
             t0_epoch, t0_batch = time.time(), time.time()
@@ -267,7 +239,7 @@ class NoisyStudent:
 
                     # Print training results
                     if is_student:
-                        log(
+                        logging.info(
                             f"{epoch_i + 1:^7} | {step:^14} | {(step*unl_to_label_batch_ratio):^16} | "
                             f"{batch_loss / batch_counts:^11.6f} | "
                             f"{batch_lab_loss / batch_counts:^15.6f} | "
@@ -276,7 +248,7 @@ class NoisyStudent:
                         )
 
                     else:
-                        log(
+                        logging.info(
                             f"{epoch_i + 1:^7} | {step:^12} | {batch_loss / batch_counts:^12.6f} | "
                             f"{'-':^10} | {'-':^9} | {time_elapsed:^9.2f}"
                         )
@@ -287,25 +259,25 @@ class NoisyStudent:
             # Calculate the average loss over the entire training data
             avg_train_loss = total_loss / len(train_dataloader)
             if evaluate_during_training:
-                val_loss, val_accuracy = self.__evaluate(self.model, val_dataloader)
+                val_loss, val_accuracy, _ = self.score(self.model, val_dataloader)
                 time_elapsed = time.time() - t0_epoch
 
                 if is_student:
-                    log("-" * 130)
-                    log(
+                    logging.info("-" * 130)
+                    logging.info(
                         f"{epoch_i + 1:^7} | {'-':^14} | {'-':^16} | {avg_train_loss:^11.6f} | "
                         f"{'-':^15} | {'-':^13}| {val_loss:^10.6f} | "
                         f"{val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
                     )
-                    log("-" * 130)
+                    logging.info("-" * 130)
                 else:
-                    log("-" * 80)
-                    log(
+                    logging.info("-" * 80)
+                    logging.info(
                         f"{epoch_i + 1:^7} | {'-':^12} | {avg_train_loss:^12.6f} | "
                         f"{val_loss:^10.6f} | {val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
                     )
-                    log("-" * 80)
-            log("\n")
+                    logging.info("-" * 80)
+            logging.info("\n")
 
             historic_loss["loss"].append(loss_list)
             historic_loss["labeled_loss"].append(lab_loss_list)
@@ -336,10 +308,12 @@ class NoisyStudent:
 
         return probs, labels
 
-    def score(self, test_dataloader: DataLoader, dump_test_history: Optional[bool] = True) -> Tuple[float, Dict]:
+    def score(
+        self, test_dataloader: DataLoader, dump_test_history: Optional[bool] = True
+    ) -> Tuple[float, float, float]:
         self.model.eval()
-        all_logits = []
-        true_labels = []
+
+        all_logits, true_labels, val_acc, val_loss = [], [], [], []
         for batch in test_dataloader:
             true_labels.extend(batch["labels"].detach().cpu().numpy())
             batch_inputs = {k: v.to(self.device) for k, v in batch.items()}
@@ -347,7 +321,15 @@ class NoisyStudent:
             with torch.no_grad():
                 output = self.model(**batch_inputs)
                 logits = output.logits
+
             all_logits.append(logits)
+
+            # get accuracy and loss
+            labels = batch_inputs["labels"]
+            acc = (preds == labels).cpu().numpy().mean() * 100
+
+            val_acc.append(acc)
+            val_loss.append(output.loss.item())
 
         all_logits = torch.cat(all_logits, dim=0)
 
@@ -363,11 +345,14 @@ class NoisyStudent:
             history["y_pred"] = preds.tolist()
             history["logits_0"] = all_logits.detach().cpu().numpy()[:, 0]
             history["logits_1"] = all_logits.detach().cpu().numpy()[:, 1]
+            history["f1_score"] = f1
+            history["val_acc"] = val_acc
+            history["val_loss"] = val_loss
 
             with open(f"test_history-model{self.num_noisy_iteration}.json") as f:
                 json.dump(history, f)
 
-        return f1, history
+        return val_loss, val_acc, f1
 
     def fit(self, train_df: pd.DataFrame, dev_df: pd.DataFrame):
         train_dataloader = self.__get_dataloader_from_df(train_df)
