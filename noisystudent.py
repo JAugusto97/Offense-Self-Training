@@ -1,17 +1,49 @@
 import json
 import logging
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import f1_score
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader, RandomSampler, Dataset
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, BatchEncoding, get_scheduler
 
-from .data_utils import BertDataset, WeakLabelDataset
+
+class BertDataset(Dataset):
+    def __init__(self, encodings: BatchEncoding, labels: List[int]) -> None:
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx: int) -> Dict:
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        item["labels"] = torch.tensor(self.labels[idx])
+        return item
+
+    def __len__(self) -> int:
+        return len(self.labels)
+
+
+class WeakLabelDataset(Dataset):
+    def __init__(self, text: str, augmented_text: Optional[str], labels=None):
+        self.text = text
+        self.augmented_text = augmented_text
+        self.labels = labels
+
+    def __getitem__(self, idx: int) -> Dict:
+        item = {"text": self.text[idx]}
+
+        if self.labels is not None:
+            item["labels"] = self.labels[idx]
+        if self.augmented_text is not None:
+            item["augmented_text"] = self.augmented_text[idx]
+
+        return item
+
+    def __len__(self) -> int:
+        return len(self.text)
 
 
 class NoisyStudent:
