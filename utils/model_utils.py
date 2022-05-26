@@ -3,11 +3,12 @@
 # - integrate methods
 
 from typing import Dict, List, Optional, Tuple, Type
+from idna import valid_contextj
 from transformers import AutoModelForSequenceClassification, AutoConfig, AutoTokenizer, BatchEncoding, get_scheduler
 import torch
 from torch.utils.data import RandomSampler, DataLoader
 import pandas as pd
-from data_utils import BertDataset, InferredDataset
+from data_utils import BertDataset, WeakLabelDataset
 from tqdm import tqdm
 import time
 import json
@@ -24,7 +25,7 @@ class NoisyStudent:
         attention_dropout: Optional[float] = None,
         classifier_dropout: Optional[float] = None,
         weight_decay: Optional[float] = 1e-2,
-        num_train_epoch: Optional[int] = 2,
+        num_train_epochs: Optional[int] = 2,
         learning_rate: Optional[float] = 5e-5,
         warmup_ratio: Optional[float] = 0.15,
         device: Optional[str] = None,
@@ -41,25 +42,25 @@ class NoisyStudent:
         self.warmup_ratio = warmup_ratio
         self.tokenizer = self.__init_tokenizer()
         self.num_noisy_iteration = 0
-        self.model = self.__init_model()
+        self.model = self.__init_model(self.attention_dropout, self.classifier_dropout)
 
     def __init_model(
-        self,
+        self, attention_dropout: Optional[float], classifier_dropout: Optional[float]
     ) -> torch.AutoModelForSequenceClassification:
         model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_bert_name)
 
         # class attributes referring to dropout are not the same for bert and distilbert
         if "distilbert" in self.pretrained_bert_name:
-            if self.attention_dropout is not None:
-                model.config.attention_dropout = self.attention_dropout
+            if attention_dropout is not None:
+                model.config.attention_dropout = attention_dropout
             if self.classifier_dropout is not None:
-                model.config.seq_classif_dropout = self.classifier_dropout
+                model.config.seq_classif_dropout = classifier_dropout
 
         else:
-            if self.attention_dropout is not None:
-                model.config.attention_probs_dropout_prob = self.attention_dropout
-            if self.classifier_dropout is not None:
-                model.config.classifier_dropout = self.classifier_dropout
+            if attention_dropout is not None:
+                model.config.attention_probs_dropout_prob = attention_dropout
+            if classifier_dropout is not None:
+                model.config.classifier_dropout = classifier_dropout
 
         model.to(self.device)
 
@@ -127,7 +128,7 @@ class NoisyStudent:
         dump_train_history: Optional[bool] = True,
         clip_grad: Optional[bool] = True,
         val_dataloader: Optional[DataLoader] = None,
-        unlabeled_dataloader: Optional[DataLoader] = None,
+        weak_label_dataloader: Optional[DataLoader] = None,
         unl_to_label_batch_ratio: Optional[float] = None,
     ):
         optimizer, scheduler = self.__get_optimizer(train_dataloader)
@@ -185,7 +186,7 @@ class NoisyStudent:
                     unl_labels = []
 
                     for _ in range(unl_to_label_batch_ratio):
-                        unl_batch = next(iter(unlabeled_dataloader))
+                        unl_batch = next(iter(weak_label_dataloader))
 
                         unl_texts = unl_batch[text_col]
                         unl_inputs = self.tokenize(unl_texts)
@@ -354,7 +355,174 @@ class NoisyStudent:
 
         return val_loss, val_acc, f1
 
-    def fit(self, train_df: pd.DataFrame, dev_df: pd.DataFrame):
+    def __get_weak_labels(
+        self, unlabeled_dataloader: DataLoader, min_confidence_threshold: float
+    ) -> Tuple[DataLoader, int, int]:
+        texts = []
+        text_augmented = []
+        labels = []
+        logits = []
+        for unl_batch in tqdm(unlabeled_dataloader):
+            unl_texts = unl_batch["text"]
+            unl_text_augmented = unl_batch["text_augmented"]
+            unl_inputs = self.tokenize(unl_texts)
+
+            # get model predictions
+            batch_inputs = {k: v.to(self.device) for k, v in unl_inputs.items()}
+            self.model.to(self.device)
+            with torch.no_grad():
+                unl_outputs = self.model(**batch_inputs)
+
+            unl_logits = unl_outputs.logits
+            batch_labels = unl_logits.argmax(dim=-1).cpu().detach().numpy()
+
+            logits.append(unl_logits.cpu().detach().numpy())
+            texts.extend(unl_texts)
+            labels.extend(batch_labels)
+            text_augmented.extend(unl_text_augmented)
+
+        logits = np.concatenate(logits)
+        # get all examples with high confidence
+        unl_softmax = torch.nn.functional.softmax(logits, axis=1)
+        high_confidence_positive_idxs = np.where(unl_softmax[:, 1] >= min_confidence_threshold)[0]
+        high_confidence_negative_idxs = np.where(unl_softmax[:, 0] >= min_confidence_threshold)[0]
+
+        # select same amount of positives and negatives (limited by the class with least examples)
+        size = min(len(high_confidence_positive_idxs), len(high_confidence_negative_idxs))
+
+        # both classes have at least one example
+        if size > 0:
+            high_confidence_negative_idxs = np.random.choice(high_confidence_negative_idxs, size=size, replace=False)
+            high_confidence_positive_idxs = np.random.choice(high_confidence_positive_idxs, size=size, replace=False)
+
+        # Problem - the model either:
+        # a) predicted all the samples as one of the classes
+        # b) high confidence predictions all belong to one of the classes
+        # Solution:
+        # for scenario a - return examples only for that class
+        # for scenario b - get random samples from the class with no predicted samples
+        else:
+            if high_confidence_negative_idxs > 0:  # has negative samples
+                size = len(high_confidence_negative_idxs)
+                high_confidence_negative_idxs = np.random.choice(
+                    high_confidence_negative_idxs, size=size, replace=False
+                )
+                try:
+                    high_confidence_positive_idxs = np.random.choice(
+                        np.where(unl_softmax[:, 1] > 0.5)[0], size=size, replace=False
+                    )
+                except ValueError:
+                    high_confidence_positive_idxs = np.array([])
+            else:  # has positive samples
+                size = len(high_confidence_positive_idxs)
+                try:
+                    high_confidence_negative_idxs = np.random.choice(
+                        np.where(unl_softmax[:, 0] > 0.5)[0], size=size, replace=False
+                    )
+                except ValueError:
+                    high_confidence_negative_idxs = np.array([])
+
+                high_confidence_positive_idxs = np.random.choice(
+                    high_confidence_positive_idxs, size=size, replace=False
+                )
+
+        high_confidence_idxs = np.append(high_confidence_positive_idxs, high_confidence_negative_idxs)
+
+        # get selected elements from each data field by their idxs
+        selected_text_augmented = list(map(text_augmented.__getitem__, high_confidence_idxs.tolist()))
+        selected_text = list(map(texts.__getitem__, high_confidence_idxs.tolist()))
+        selected_label = np.argmax(unl_softmax[high_confidence_idxs], axis=1)
+        selected_confidence = np.max(unl_softmax[high_confidence_idxs], axis=1)
+
+        augmented_df = pd.DataFrame(
+            {
+                "text": selected_text,
+                "text_augmented": selected_text_augmented,
+                "label": selected_label,
+                "confidence": selected_confidence,
+            }
+        )
+
+        augmentedset = WeakLabelDataset(augmented_df, labels=labels)
+
+        augmented_sampler = RandomSampler(augmentedset)
+        augmented_dataloader = DataLoader(augmentedset, sampler=augmented_sampler, batch_size=self.batch_size)
+        amnt_new_samples_pos = len(augmented_df[augmented_df["label"] == 1])
+        amnt_new_samples_neg = len(augmented_df[augmented_df["label"] == 0])
+        logging.debug(
+            "Added to train set:\n"
+            f"\tNew + samples: {amnt_new_samples_pos}\n"
+            f"\tNew - Samples: {amnt_new_samples_neg}"
+        )
+
+        return augmented_dataloader, amnt_new_samples_pos, amnt_new_samples_neg
+
+    def fit(
+        self,
+        train_df: pd.DataFrame,
+        test_df: pd.DataFrame,
+        unlabeled_df: pd.DataFrame,
+        min_confidence_threshold: float,
+        num_iters: int,
+        dev_df: Optional[pd.DataFrame] = None,
+        increase_attention_dropout_amount: Optional[float] = None,
+        increase_classifier_dropout_amount: Optional[float] = None,
+        increase_confidence_threshold_amount: Optional[float] = None,
+    ):
+        # get dataloaders
         train_dataloader = self.__get_dataloader_from_df(train_df)
+        test_dataloader = self.__get_dataloader_from_df(test_df)
+
+        weaklabelset = WeakLabelDataset(unlabeled_df)
+        sampler = RandomSampler(weaklabelset)
+        unlabeled_dataloader = DataLoader(weaklabelset, sampler=sampler, batch_size=self.batch_size)
+
         if dev_df is not None:
             dev_dataloader = self.__get_dataloader_from_df(dev_df)
+        else:
+            dev_dataloader = test_dataloader
+
+        current_attention_dropout = self.attention_dropout
+        current_classifier_dropout = self.classifier_dropout
+        current_confidence_threshold = min_confidence_threshold
+
+        # train teacher model
+        self.__train(
+            train_dataloader=train_dataloader,
+            dev_dataloader=dev_dataloader,
+            evaluate_during_training=True,
+            is_student=False,
+        )
+
+        _, acc, f1 = self.score(test_dataloader)
+        logging.info(f"F1-Score: {f1} - Accuracy: {acc}")
+
+        for it in range(num_iters):
+            weak_label_dataloader, num_new_examples_pos, num_new_examples_neg = self.__get_weak_labels(
+                unlabeled_dataloader, current_confidence_threshold
+            )
+            trainset_steps = int(np.ceil(len(train_dataloader.dataset) / self.batch_size))
+            weaklabelset_steps = int(np.ceil(len(weak_label_dataloader.dataset) / self.batch_size))
+            unl_to_label_batch_ratio = int(np.ceil(weaklabelset_steps / trainset_steps))
+            if unl_to_label_batch_ratio < 1:
+                raise Exception("Not enough new samples to train")
+
+            current_attention_dropout += increase_attention_dropout_amount
+            current_classifier_dropout += increase_classifier_dropout_amount
+            current_confidence_threshold += increase_confidence_threshold_amount
+
+            # instantiate new student model
+            self.model = self.__init_model(current_attention_dropout, current_classifier_dropout)
+
+            # train student model
+            self.__train(
+                train_dataloader=train_dataloader,
+                dev_dataloader=dev_dataloader,
+                evaluate_during_training=True,
+                is_student=True,
+                weak_label_dataloader=weak_label_dataloader,
+                unl_to_label_batch_ratio=unl_to_label_batch_ratio,
+            )
+
+            _, acc, f1 = self.score(test_dataloader)
+            logging.info(f"F1-Score: {f1} - Accuracy: {acc}")

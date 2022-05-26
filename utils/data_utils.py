@@ -23,7 +23,7 @@ class BertDataset(Dataset):
         return len(self.labels)
 
 
-class InferredDataset(Dataset):
+class WeakLabelDataset(Dataset):
     def __init__(self, text: str, augmented_text: Optional[str], labels=None):
         self.text = text
         self.augmented_text = augmented_text
