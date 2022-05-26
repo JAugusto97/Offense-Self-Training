@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import time
@@ -108,13 +109,6 @@ class NoisyStudent:
 
         return tokenizer
 
-    def tokenize(self, texts: List[str]) -> BatchEncoding:
-        tokenized = self.tokenizer(
-            texts, truncation=True, padding="max_length", max_length=self.max_seq_len, return_tensors="pt"
-        )
-
-        return tokenized
-
     def __get_dataloader_from_df(self, df: pd.DataFrame) -> DataLoader:
         texts = df.iloc[:, 0].astype("str").to_list()
         targets = df.iloc[:, 1].astype("category").to_list()
@@ -166,7 +160,7 @@ class NoisyStudent:
         use_augmentation: Optional[bool] = True,
     ):
         optimizer, scheduler = self.__get_optimizer(train_dataloader)
-        progress_bar = tqdm(range(self.num_train_epochs * len(train_dataloader)))
+        progress_bar = tqdm(range(self.num_train_epochs * len(train_dataloader)), desc="Training")
         print_each_n_steps = int(len(train_dataloader) // 4)
         logging.info("Start training...\n")
 
@@ -294,7 +288,7 @@ class NoisyStudent:
             # Calculate the average loss over the entire training data
             avg_train_loss = total_loss / len(train_dataloader)
             if evaluate_during_training:
-                val_loss, val_accuracy, _ = self.score(self.model, dev_dataloader)
+                val_loss, val_accuracy, _ = self.score(dev_dataloader)
                 time_elapsed = time.time() - t0_epoch
 
                 if is_student:
@@ -321,7 +315,7 @@ class NoisyStudent:
             historic_loss["steps"].append(step_list)
 
         if dump_train_history:
-            with open(f"train_history-model{self.num_noisy_iteration}.json") as f:
+            with open(os.path.join("logs", f"train_history-model{self.num_noisy_iteration}.json"), "a+") as f:
                 json.dump(historic_loss, f)
 
     def predict_batch(self, dataloader: DataLoader) -> List[np.array]:
@@ -348,7 +342,7 @@ class NoisyStudent:
     ) -> Tuple[float, float, float]:
         self.model.eval()
 
-        all_logits, true_labels, val_acc, val_loss = [], [], [], []
+        all_logits, all_preds, true_labels, val_acc, val_loss = [], [], [], [], []
         for batch in test_dataloader:
             true_labels.extend(batch["labels"].detach().cpu().numpy())
             batch_inputs = {k: v.to(self.device) for k, v in batch.items()}
@@ -360,31 +354,33 @@ class NoisyStudent:
             all_logits.append(logits)
 
             # get accuracy and loss
-            labels = batch_inputs["labels"]
-            acc = (preds == labels).cpu().numpy().mean() * 100
+            labels = batch_inputs["labels"].cpu().numpy()
+            probs = torch.nn.functional.softmax(logits, dim=1).cpu().numpy()
+            preds = np.argmax(probs, axis=1)
+            all_preds.extend(preds)
+
+            acc = (preds == labels).mean() * 100
 
             val_acc.append(acc)
             val_loss.append(output.loss.item())
 
         all_logits = torch.cat(all_logits, dim=0)
 
-        probs = torch.nn.functional.softmax(all_logits, dim=1).cpu().numpy()
-        preds = np.argmax(probs, axis=1)
-
         # clf_report = classification_report(true_labels, preds)
-        f1 = f1_score(true_labels, preds, average="macro")
+        f1 = f1_score(true_labels, all_preds, average="macro")
 
         if dump_test_history:
             history = {"y_true": [], "y_pred": [], "logits_0": [], "logits_1": []}
             history["y_true"] = true_labels
             history["y_pred"] = preds.tolist()
-            history["logits_0"] = all_logits.detach().cpu().numpy()[:, 0]
-            history["logits_1"] = all_logits.detach().cpu().numpy()[:, 1]
+            history["logits_0"] = all_logits.detach().cpu().numpy()[:, 0].tolist()
+            history["logits_1"] = all_logits.detach().cpu().numpy()[:, 1].tolist()
             history["f1_score"] = f1
             history["val_acc"] = val_acc
             history["val_loss"] = val_loss
 
-            with open(f"test_history-model{self.num_noisy_iteration}.json") as f:
+            # TODO: fix json not serializable
+            with open(os.path.join("logs", f"test_history-model{self.num_noisy_iteration}.json"), "a+") as f:
                 json.dump(history, f)
 
         return val_loss, val_acc, f1
@@ -490,6 +486,13 @@ class NoisyStudent:
         )
 
         return augmented_dataloader, amnt_new_samples_pos, amnt_new_samples_neg
+
+    def tokenize(self, texts: List[str]) -> BatchEncoding:
+        tokenized = self.tokenizer(
+            texts, truncation=True, padding="max_length", max_length=self.max_seq_len, return_tensors="pt"
+        )
+
+        return tokenized
 
     def fit(
         self,
