@@ -1,15 +1,13 @@
 import os
 import json
-import codecs
 import logging
-from shutil import ExecError
 import time
 from typing import List, Optional, Tuple, Dict
 
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, f1_score, classification_report
 from scipy.special import softmax
 from torch.utils.data import DataLoader, RandomSampler, Dataset
 from tqdm import tqdm
@@ -165,23 +163,23 @@ class NoisyStudent:
         optimizer, scheduler = self.__get_optimizer(train_dataloader)
         progress_bar = tqdm(range(self.num_train_epochs * len(train_dataloader)), desc="Training")
         print_each_n_steps = int(len(train_dataloader) // 4)
-        logging.info("Start training...\n")
+        logging.debug("Start training...\n")
 
         historic_loss = {"loss": [], "labeled_loss": [], "unlabeled_loss": [], "steps": [], "unl_steps": []}
         for epoch_i in range(self.num_train_epochs):
             if is_student:
-                logging.info(
+                logging.debug(
                     f"{'Epoch':^7} | {'Labeled Batch':^14} | {'Unlabeled Batch':^16} | "
                     f"{'Train Loss':^11} | {'Labeled Loss':^13} | "
                     f"{'Unlabeled Loss':^15} | {'Val Loss':^10} | {'Val Acc':^9} | {'Elapsed':^9}"
                 )
-                logging.info("-" * 130)
+                logging.debug("-" * 130)
             else:
-                logging.info(
+                logging.debug(
                     f"{'Epoch':^7} | {'Train Batch':^12} | "
                     f"{'Train Loss':^12} | {'Val Loss':^10} | {'Val Acc':^9} | {'Elapsed':^9}"
                 )
-                logging.info("-" * 80)
+                logging.debug("-" * 80)
 
             # measure the elapsed time of each epoch
             t0_epoch, t0_batch = time.time(), time.time()
@@ -271,7 +269,7 @@ class NoisyStudent:
 
                     # Print training results
                     if is_student:
-                        logging.info(
+                        logging.debug(
                             f"{epoch_i + 1:^7} | {step:^14} | {(step*unl_to_label_batch_ratio):^16} | "
                             f"{batch_loss / batch_counts:^11.6f} | "
                             f"{batch_lab_loss / batch_counts:^15.6f} | "
@@ -280,7 +278,7 @@ class NoisyStudent:
                         )
 
                     else:
-                        logging.info(
+                        logging.debug(
                             f"{epoch_i + 1:^7} | {step:^12} | {batch_loss / batch_counts:^12.6f} | "
                             f"{'-':^10} | {'-':^9} | {time_elapsed:^9.2f}"
                         )
@@ -291,25 +289,25 @@ class NoisyStudent:
             # Calculate the average loss over the entire training data
             avg_train_loss = total_loss / len(train_dataloader)
             if evaluate_during_training:
-                val_loss, val_accuracy, _ = self.score(dev_dataloader, dump_test_history=False)
+                val_loss, val_accuracy, _, _ = self.score(dev_dataloader, dump_test_history=False)
                 time_elapsed = time.time() - t0_epoch
 
                 if is_student:
-                    logging.info("-" * 130)
-                    logging.info(
+                    logging.debug("-" * 130)
+                    logging.debug(
                         f"{epoch_i + 1:^7} | {'-':^14} | {'-':^16} | {avg_train_loss:^11.6f} | "
                         f"{'-':^15} | {'-':^13}| {val_loss:^10.6f} | "
                         f"{val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
                     )
-                    logging.info("-" * 130)
+                    logging.debug("-" * 130)
                 else:
-                    logging.info("-" * 80)
-                    logging.info(
+                    logging.debug("-" * 80)
+                    logging.debug(
                         f"{epoch_i + 1:^7} | {'-':^12} | {avg_train_loss:^12.6f} | "
                         f"{val_loss:^10.6f} | {val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
                     )
-                    logging.info("-" * 80)
-            logging.info("\n")
+                    logging.debug("-" * 80)
+            logging.debug("\n")
 
             historic_loss["loss"].append(loss_list)
             historic_loss["labeled_loss"].append(lab_loss_list)
@@ -345,50 +343,47 @@ class NoisyStudent:
     ) -> Tuple[float, float, float]:
         self.model.eval()
 
-        all_logits, all_preds, true_labels, val_acc, val_loss = [], [], [], [], []
+        logits, preds, true_labels, val_loss = [], [], [], []
         for batch in test_dataloader:
-            true_labels.extend(batch["labels"].detach().cpu().numpy())
+            batch_labels = batch["labels"]
             batch_inputs = {k: v.to(self.device) for k, v in batch.items()}
 
             with torch.no_grad():
-                output = self.model(**batch_inputs)
-                logits = output.logits
-
-            all_logits.append(logits)
+                batch_output = self.model(**batch_inputs)
+                batch_logits = batch_output.logits
 
             # get accuracy and loss
-            labels = batch_inputs["labels"].cpu().numpy()
-            probs = torch.nn.functional.softmax(logits, dim=1).cpu().numpy()
-            preds = np.argmax(probs, axis=1)
-            all_preds.extend(preds)
+            batch_probs = torch.nn.functional.softmax(batch_logits, dim=1).cpu().numpy()
+            batch_preds = np.argmax(batch_probs, axis=1)
 
-            acc = (preds == labels).mean()
+            val_loss.append(batch_output.loss.item())
+            preds.extend(batch_preds)
+            logits.append(batch_logits)
+            true_labels.extend(batch_labels)
 
-            val_acc.append(acc)
-            val_loss.append(output.loss.item())
-
-        all_logits = torch.cat(all_logits, dim=0)
+        logits = torch.cat(logits, dim=0)
         true_labels = np.array(true_labels)
+        preds = np.array(preds)
 
-        # clf_report = classification_report(true_labels, preds)
-        f1 = f1_score(true_labels, all_preds, average="macro")
-        val_acc = np.mean(val_acc)
+        clf_report = classification_report(true_labels, preds, zero_division=0)
+        f1 = f1_score(true_labels, preds, average="macro", zero_division=0)
+        acc = accuracy_score(true_labels, preds)
         val_loss = np.mean(val_loss)
 
         if dump_test_history:
             history = {"y_true": [], "y_pred": [], "logits_0": [], "logits_1": []}
             history["y_true"] = [int(v) for v in true_labels.tolist()]
             history["y_pred"] = [int(v) for v in preds.tolist()]
-            history["logits_0"] = all_logits.detach().cpu().numpy()[:, 0].tolist()
-            history["logits_1"] = all_logits.detach().cpu().numpy()[:, 1].tolist()
+            history["logits_0"] = logits.detach().cpu().numpy()[:, 0].tolist()
+            history["logits_1"] = logits.detach().cpu().numpy()[:, 1].tolist()
             history["f1_score"] = f1
-            history["val_acc"] = val_acc
-            history["val_loss"] = val_loss
+            history["accuracy"] = acc
+            history["loss"] = val_loss
 
             with open(os.path.join("logs", f"test_history-model{self.num_noisy_iteration}.json"), "w") as f:
                 json.dump(history, f)
 
-        return val_loss, val_acc, f1
+        return val_loss, acc, f1, clf_report
 
     def __get_weak_labels(
         self, unlabeled_dataloader: DataLoader, min_confidence_threshold: float
@@ -397,7 +392,7 @@ class NoisyStudent:
         text_augmented = []
         labels = []
         logits = []
-        for unl_batch in tqdm(unlabeled_dataloader):
+        for unl_batch in tqdm(unlabeled_dataloader, desc="Inferring Silver Labels"):
             unl_texts = unl_batch["text"]
             unl_text_augmented = unl_batch["augmented_text"]
             unl_inputs = self.tokenize(unl_texts)
@@ -532,6 +527,7 @@ class NoisyStudent:
         current_confidence_threshold = min_confidence_threshold
 
         # train teacher model
+        logging.info("Training Base Classifier...")
         self.__train(
             train_dataloader=train_dataloader,
             dev_dataloader=dev_dataloader,
@@ -540,13 +536,17 @@ class NoisyStudent:
             use_augmentation=use_augmentation,
         )
 
-        _, acc, f1 = self.score(test_dataloader)
-        logging.info(f"F1-Score: {f1} - Accuracy: {acc}")
+        _, acc, f1, clf_report = self.score(test_dataloader)
+        logging.info("Classification Report\n" + clf_report)
+        logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
 
-        for _ in range(num_iters):
+        for i in range(num_iters):
+            logging.debug(f"Inferring silver labels for student {i+1}...")
             weak_label_dataloader, num_new_examples_pos, num_new_examples_neg = self.__get_weak_labels(
                 unlabeled_dataloader, current_confidence_threshold
             )
+            logging.info(f"Added {num_new_examples_neg} Negative and {num_new_examples_pos} Positive samples.")
+
             trainset_steps = int(np.ceil(len(train_dataloader.dataset) / self.batch_size))
             weaklabelset_steps = int(np.ceil(len(weak_label_dataloader.dataset) / self.batch_size))
             unl_to_label_batch_ratio = int(np.ceil(weaklabelset_steps / trainset_steps))
@@ -561,6 +561,7 @@ class NoisyStudent:
             self.model = self.__init_model(current_attention_dropout, current_classifier_dropout)
 
             # train student model
+            logging.info(f"Training Student {i+1} Classifier...")
             self.__train(
                 train_dataloader=train_dataloader,
                 dev_dataloader=dev_dataloader,
@@ -571,5 +572,6 @@ class NoisyStudent:
                 use_augmentation=use_augmentation,
             )
 
-            _, acc, f1 = self.score(test_dataloader)
-            logging.info(f"F1-Score: {f1} - Accuracy: {acc}")
+            _, acc, f1, clf_report = self.score(test_dataloader)
+            logging.info("Classification Report:\n" + clf_report)
+            logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
