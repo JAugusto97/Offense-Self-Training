@@ -1,6 +1,8 @@
 import os
 import json
+import codecs
 import logging
+from shutil import ExecError
 import time
 from typing import List, Optional, Tuple, Dict
 
@@ -8,6 +10,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import f1_score
+from scipy.special import softmax
 from torch.utils.data import DataLoader, RandomSampler, Dataset
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, BatchEncoding, get_scheduler
@@ -29,8 +32,8 @@ class BertDataset(Dataset):
 
 class WeakLabelDataset(Dataset):
     def __init__(self, df, labels=None):
-        self.text = df.iloc[:, 0]
-        self.augmented_text = df.iloc[:, 1]
+        self.text = df.iloc[:, 0].to_list()
+        self.augmented_text = df.iloc[:, 1].to_list()
         self.labels = labels
 
     def __getitem__(self, idx: int) -> Dict:
@@ -288,7 +291,7 @@ class NoisyStudent:
             # Calculate the average loss over the entire training data
             avg_train_loss = total_loss / len(train_dataloader)
             if evaluate_during_training:
-                val_loss, val_accuracy, _ = self.score(dev_dataloader)
+                val_loss, val_accuracy, _ = self.score(dev_dataloader, dump_test_history=False)
                 time_elapsed = time.time() - t0_epoch
 
                 if is_student:
@@ -359,28 +362,30 @@ class NoisyStudent:
             preds = np.argmax(probs, axis=1)
             all_preds.extend(preds)
 
-            acc = (preds == labels).mean() * 100
+            acc = (preds == labels).mean()
 
             val_acc.append(acc)
             val_loss.append(output.loss.item())
 
         all_logits = torch.cat(all_logits, dim=0)
+        true_labels = np.array(true_labels)
 
         # clf_report = classification_report(true_labels, preds)
         f1 = f1_score(true_labels, all_preds, average="macro")
+        val_acc = np.mean(val_acc)
+        val_loss = np.mean(val_loss)
 
         if dump_test_history:
             history = {"y_true": [], "y_pred": [], "logits_0": [], "logits_1": []}
-            history["y_true"] = true_labels
-            history["y_pred"] = preds.tolist()
+            history["y_true"] = [int(v) for v in true_labels.tolist()]
+            history["y_pred"] = [int(v) for v in preds.tolist()]
             history["logits_0"] = all_logits.detach().cpu().numpy()[:, 0].tolist()
             history["logits_1"] = all_logits.detach().cpu().numpy()[:, 1].tolist()
             history["f1_score"] = f1
             history["val_acc"] = val_acc
             history["val_loss"] = val_loss
 
-            # TODO: fix json not serializable
-            with open(os.path.join("logs", f"test_history-model{self.num_noisy_iteration}.json"), "a+") as f:
+            with open(os.path.join("logs", f"test_history-model{self.num_noisy_iteration}.json"), "w") as f:
                 json.dump(history, f)
 
         return val_loss, val_acc, f1
@@ -394,7 +399,7 @@ class NoisyStudent:
         logits = []
         for unl_batch in tqdm(unlabeled_dataloader):
             unl_texts = unl_batch["text"]
-            unl_text_augmented = unl_batch["text_augmented"]
+            unl_text_augmented = unl_batch["augmented_text"]
             unl_inputs = self.tokenize(unl_texts)
 
             # get model predictions
@@ -413,7 +418,7 @@ class NoisyStudent:
 
         logits = np.concatenate(logits)
         # get all examples with high confidence
-        unl_softmax = torch.nn.functional.softmax(logits, axis=1)
+        unl_softmax = softmax(logits, axis=1)
         high_confidence_positive_idxs = np.where(unl_softmax[:, 1] >= min_confidence_threshold)[0]
         high_confidence_negative_idxs = np.where(unl_softmax[:, 0] >= min_confidence_threshold)[0]
 
@@ -432,7 +437,7 @@ class NoisyStudent:
         # for scenario a - return examples only for that class
         # for scenario b - get random samples from the class with no predicted samples
         else:
-            if high_confidence_negative_idxs > 0:  # has negative samples
+            if len(high_confidence_negative_idxs) > 0:  # has negative samples
                 size = len(high_confidence_negative_idxs)
                 high_confidence_negative_idxs = np.random.choice(
                     high_confidence_negative_idxs, size=size, replace=False
@@ -457,10 +462,12 @@ class NoisyStudent:
                 )
 
         high_confidence_idxs = np.append(high_confidence_positive_idxs, high_confidence_negative_idxs)
-
+        high_confidence_idxs = [int(v) for v in high_confidence_idxs]
+        if len(high_confidence_idxs) < 1:
+            raise Exception(f"Could not select any silver labels using {min_confidence_threshold*100:.2f}% threshold.")
         # get selected elements from each data field by their idxs
-        selected_text_augmented = list(map(text_augmented.__getitem__, high_confidence_idxs.tolist()))
-        selected_text = list(map(texts.__getitem__, high_confidence_idxs.tolist()))
+        selected_text_augmented = list(map(text_augmented.__getitem__, high_confidence_idxs))
+        selected_text = list(map(texts.__getitem__, high_confidence_idxs))
         selected_label = np.argmax(unl_softmax[high_confidence_idxs], axis=1)
         selected_confidence = np.max(unl_softmax[high_confidence_idxs], axis=1)
 
@@ -473,7 +480,7 @@ class NoisyStudent:
             }
         )
 
-        augmentedset = WeakLabelDataset(augmented_df, labels=labels)
+        augmentedset = WeakLabelDataset(augmented_df, labels=augmented_df["label"].to_list())
 
         augmented_sampler = RandomSampler(augmentedset)
         augmented_dataloader = DataLoader(augmentedset, sampler=augmented_sampler, batch_size=self.batch_size)
@@ -543,12 +550,12 @@ class NoisyStudent:
             trainset_steps = int(np.ceil(len(train_dataloader.dataset) / self.batch_size))
             weaklabelset_steps = int(np.ceil(len(weak_label_dataloader.dataset) / self.batch_size))
             unl_to_label_batch_ratio = int(np.ceil(weaklabelset_steps / trainset_steps))
-            if unl_to_label_batch_ratio < 1:
-                raise Exception("Not enough new samples to train")
 
-            current_attention_dropout += increase_attention_dropout_amount
-            current_classifier_dropout += increase_classifier_dropout_amount
-            current_confidence_threshold += increase_confidence_threshold_amount
+            if increase_attention_dropout_amount is not None:
+                current_attention_dropout += increase_attention_dropout_amount
+                current_classifier_dropout += increase_classifier_dropout_amount
+            if increase_confidence_threshold_amount is not None:
+                current_confidence_threshold += increase_confidence_threshold_amount
 
             # instantiate new student model
             self.model = self.__init_model(current_attention_dropout, current_classifier_dropout)
