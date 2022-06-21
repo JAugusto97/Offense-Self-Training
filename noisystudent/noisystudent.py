@@ -52,7 +52,7 @@ class NoisyStudent:
     def __init__(
         self,
         pretrained_bert_name: Optional[str] = "bert-base-cased",
-        max_seq_len: Optional[int] = 256,
+        max_seq_len: Optional[int] = 128,
         attention_dropout: Optional[float] = None,
         classifier_dropout: Optional[float] = None,
         weight_decay: Optional[float] = 1e-2,
