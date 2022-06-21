@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import logging
 import random
+import gdown
 from typing import Optional, Tuple
 
 import numpy as np
@@ -42,6 +43,12 @@ def set_seed(seed_value: int) -> None:
 
 
 def load_mhs(seed: Optional[int] = None) -> Tuple[pd.DataFrame]:
+    folder_id = "1zb5espYd0sU0s7Zu9acDVd7fwA1DsTX1"
+    output = "datasets/"
+    file_id = "1QVQXtP2hEEfiRfzqugud0ZEdDf1H4LCW"
+    gdown.download_folder(id=folder_id, output=output, quiet=True)
+    gdown.download(id=file_id, output=output, quiet=True)
+
     path = os.path.join("datasets", "measuring_hate_speech")
 
     unlabeled_path = os.path.join("datasets", "tweets_augmented.csv")
@@ -65,30 +72,13 @@ def load_mhs(seed: Optional[int] = None) -> Tuple[pd.DataFrame]:
     return train_df, dev_df, test_df, unlabeled_df
 
 
-def load_davidson(seed: Optional[int] = None) -> Tuple[pd.DataFrame]:
-    path = os.path.join("datasets", "davidson", "davidson.csv")
-    unlabeled_path = os.path.join("datasets", "tweets_augmented.csv")
-
-    data_df = pd.read_csv(path)
-    data_df.loc[data_df["class"] != 0, "label"] = 1
-    data_df.loc[data_df["class"] == 0, "label"] = 0
-    data_df["label"] = data_df["label"].astype(int)
-    data_df = data_df[["tweet", "label"]]
-
-    train_df, dev_df = train_test_split(data_df, train_size=0.7, stratify=data_df["label"], random_state=seed)
-    dev_df, test_df = train_test_split(dev_df, train_size=0.5, stratify=dev_df["label"], random_state=seed)
-    unlabeled_df = pd.read_csv(unlabeled_path)
-
-    train_df = train_df.reset_index(drop=True)
-    aux_train_df = train_df[train_df["label"] == 0]
-    train_df = aux_train_df.append(train_df[train_df["label"] == 1].sample(len(aux_train_df)))
-    dev_df = dev_df.reset_index(drop=True)
-    test_df = test_df.reset_index(drop=True)
-
-    return train_df, dev_df, test_df, unlabeled_df
-
-
 def load_convabuse() -> Tuple[pd.DataFrame]:
+    folder_id = "11KX9NQdwRpcjOexOFGbeay5d2QbvXIdv"
+    output = "datasets/"
+    file_id = "1QVQXtP2hEEfiRfzqugud0ZEdDf1H4LCW"
+    gdown.download_folder(id=folder_id, output=output, quiet=True)
+    gdown.download(id=file_id, output=output, quiet=True)
+
     path = os.path.join("datasets", "convabuse")
 
     unlabeled_path = os.path.join("datasets", "tweets_augmented.csv")
@@ -119,6 +109,12 @@ def load_convabuse() -> Tuple[pd.DataFrame]:
 
 
 def load_olid() -> Tuple[pd.DataFrame]:
+    folder_id = "1qu64mgHyizjp4YGO_zK4xi1J9U2aw3A8"
+    output = "datasets/"
+    file_id = "1QVQXtP2hEEfiRfzqugud0ZEdDf1H4LCW"
+    gdown.download_folder(id=folder_id, output=output, quiet=True)
+    gdown.download(id=file_id, output=output, quiet=True)
+
     path = os.path.join("datasets", "olidv1")
 
     train_path = os.path.join(path, "olid-training-v1.0.tsv")
