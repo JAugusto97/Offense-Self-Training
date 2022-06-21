@@ -154,7 +154,6 @@ class NoisyStudent:
         dev_dataloader: Optional[DataLoader] = None,
         weak_label_dataloader: Optional[DataLoader] = None,
         unl_to_label_batch_ratio: Optional[float] = None,
-        use_augmentation: Optional[bool] = True,
     ):
         optimizer, scheduler = self.__get_optimizer(train_dataloader)
         progress_bar = tqdm(range(self.num_train_epochs * len(train_dataloader)), desc="Training")
@@ -525,7 +524,6 @@ class NoisyStudent:
             dev_dataloader=dev_dataloader,
             evaluate_during_training=True,
             is_student=False,
-            use_augmentation=use_augmentation,
         )
 
         _, acc, f1, clf_report = self.score(test_dataloader)
@@ -561,7 +559,6 @@ class NoisyStudent:
                 is_student=True,
                 weak_label_dataloader=weak_label_dataloader,
                 unl_to_label_batch_ratio=unl_to_label_batch_ratio,
-                use_augmentation=use_augmentation,
             )
 
             _, acc, f1, clf_report = self.score(test_dataloader)
