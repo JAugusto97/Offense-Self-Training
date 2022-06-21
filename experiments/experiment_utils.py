@@ -30,7 +30,8 @@ def get_logger(level: Optional[str] = "debug", filename: Optional[str] = None) -
         datefmt="%d-%b-%y %H:%M:%S",
     )
 
-    logger = logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+    logger = logging.getLogger()
+    logger.addHandler(logging.StreamHandler(sys.stdout))
     return logger
 
 
