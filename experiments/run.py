@@ -5,6 +5,7 @@ sys.path.append("..")
 import os
 from noisystudent import NoisyStudent
 import argparse
+import gdown
 from experiments import load_dataset, set_seed, get_logger
 
 
@@ -41,6 +42,9 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
+
+    folder_url = "https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW"
+    gdown.download_folder(id=folder_url, output=".", quiet=True)
 
     log_path = os.path.join("logs", f"{args.exp_name}.log")
     logger = get_logger(level="info", filename=log_path)

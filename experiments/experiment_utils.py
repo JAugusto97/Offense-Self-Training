@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import logging
 import random
-import gdown
 from typing import Optional, Tuple
 
 import numpy as np
@@ -43,12 +42,6 @@ def set_seed(seed_value: int) -> None:
 
 
 def load_mhs(seed: Optional[int] = None) -> Tuple[pd.DataFrame]:
-    folder_id = "1zb5espYd0sU0s7Zu9acDVd7fwA1DsTX1"
-    output = "datasets/"
-    file_id = "https://drive.google.com/file/d/1QVQXtP2hEEfiRfzqugud0ZEdDf1H4LCW/view?usp=sharing"
-    gdown.download_folder(id=folder_id, output=output, quiet=True)
-    gdown.download(id=file_id, output=output, quiet=True)
-
     path = os.path.join("datasets", "measuring_hate_speech")
 
     unlabeled_path = os.path.join("datasets", "tweets_augmented.csv")
@@ -73,12 +66,6 @@ def load_mhs(seed: Optional[int] = None) -> Tuple[pd.DataFrame]:
 
 
 def load_convabuse() -> Tuple[pd.DataFrame]:
-    folder_id = "11KX9NQdwRpcjOexOFGbeay5d2QbvXIdv"
-    output = "datasets/"
-    file_id = "https://drive.google.com/file/d/1QVQXtP2hEEfiRfzqugud0ZEdDf1H4LCW/view?usp=sharing"
-    gdown.download_folder(id=folder_id, output=output, quiet=True)
-    gdown.download(id=file_id, output=output, quiet=True, fuzzy=True)
-
     path = os.path.join("datasets", "ConvAbuse")
 
     unlabeled_path = os.path.join("datasets", "tweets_augmented.csv")
@@ -109,12 +96,6 @@ def load_convabuse() -> Tuple[pd.DataFrame]:
 
 
 def load_olid() -> Tuple[pd.DataFrame]:
-    folder_id = "1qu64mgHyizjp4YGO_zK4xi1J9U2aw3A8"
-    output = "datasets/"
-    file_id = "https://drive.google.com/file/d/1QVQXtP2hEEfiRfzqugud0ZEdDf1H4LCW/view?usp=sharing"
-    gdown.download_folder(id=folder_id, output=output, quiet=True)
-    gdown.download(id=file_id, output=output, quiet=True, fuzzy=True)
-
     path = os.path.join("datasets", "OLIDv1.0")
 
     train_path = os.path.join(path, "olid-training-v1.0.tsv")
@@ -162,8 +143,6 @@ def load_dataset(dataset_name, few_shot=False, num_split=None):
         train_df, dev_df, test_df, unlabeled_df = load_olid()
     elif dataset_name == "convabuse":
         train_df, dev_df, test_df, unlabeled_df = load_convabuse()
-    elif dataset_name == "davidson":
-        train_df, dev_df, test_df, unlabeled_df = load_davidson()
     elif dataset_name == "measuring_hate_speech":
         train_df, dev_df, test_df, unlabeled_df = load_mhs()
 
