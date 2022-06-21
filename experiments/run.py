@@ -11,29 +11,29 @@ from experiments import load_dataset, set_seed, get_logger
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("dataset")
-    parser.add_argument("--seed", default=42)
-    parser.add_argument("--exp_name", default="experiment")
+    parser.add_argument("dataset", type=str)
+    parser.add_argument("--seed", default=42, type=int)
+    parser.add_argument("--exp_name", default="experiment", type=str)
 
     # bert args
-    parser.add_argument("--pretrained_bert_name", default="bert-base-cased")
-    parser.add_argument("--max_seq_len", default=128)
-    parser.add_argument("--batch_size", default=32)
-    parser.add_argument("--device", default="cuda")
-    parser.add_argument("--weight_decay", default=1e-2)
-    parser.add_argument("--num_train_epochs", default=2)
-    parser.add_argument("--learning_rate", default=5e-5)
-    parser.add_argument("--warmup_ratio", default=0.15)
-    parser.add_argument("--classifier_dropout", default=None)
-    parser.add_argument("--attention_dropout", default=None)
+    parser.add_argument("--pretrained_bert_name", default="bert-base-cased", type=str)
+    parser.add_argument("--max_seq_len", default=128, type=int)
+    parser.add_argument("--batch_size", default=32, type=int)
+    parser.add_argument("--device", default="cuda", type="str")
+    parser.add_argument("--weight_decay", default=1e-2, type=float)
+    parser.add_argument("--num_train_epochs", default=2, type=int)
+    parser.add_argument("--learning_rate", default=5e-5, type=float)
+    parser.add_argument("--warmup_ratio", default=0.15, type=float)
+    parser.add_argument("--classifier_dropout", default=None, type=float)
+    parser.add_argument("--attention_dropout", default=None, type=float)
 
     # ST args
-    parser.add_argument("--min_confidence_threshold", default=0.51)
-    parser.add_argument("--num_st_iters", default=2)
-    parser.add_argument("--use_augmentation", default=True)
-    parser.add_argument("--increase_attention_dropout_amount", default=None)
-    parser.add_argument("--increase_classifier_dropout_amount", default=None)
-    parser.add_argument("--increase_confidence_threshold_amount", default=None)
+    parser.add_argument("--min_confidence_threshold", default=0.51, type=float)
+    parser.add_argument("--num_st_iters", default=3, type=int)
+    parser.add_argument("--use_augmentation", default=True, type=bool)
+    parser.add_argument("--increase_attention_dropout_amount", default=None, type=float)
+    parser.add_argument("--increase_classifier_dropout_amount", default=None, type=float)
+    parser.add_argument("--increase_confidence_threshold_amount", default=None, type=float)
 
     args = parser.parse_args()
 
