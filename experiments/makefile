@@ -27,8 +27,8 @@ convabuse-ns:
 		--use_augmentation \
 		--classifier_dropout 0.10 \
 		--attention_dropout 0.10 \
-		--increase_attention_dropout_amount 0.15
-		--increase_classifier_dropout_amount 0.15
+		--increase_attention_dropout_amount 0.15 \
+		--increase_classifier_dropout_amount 0.15 \
 		--exp_name convabuse-ns
 
 mhs-default:
@@ -42,6 +42,6 @@ mhs-ns:
 		--use_augmentation \
 		--classifier_dropout 0.10 \
 		--attention_dropout 0.10 \
-		--increase_attention_dropout_amount 0.15
-		--increase_classifier_dropout_amount 0.15
+		--increase_attention_dropout_amount 0.15 \
+		--increase_classifier_dropout_amount 0.15 \
 		--exp_name mhs-ns
