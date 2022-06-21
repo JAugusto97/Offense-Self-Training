@@ -27,8 +27,8 @@ def get_args():
     parser.add_argument("--attention_dropout", default=None)
 
     # ST args
-    parser.add_argument("--min_confidence_threshold")
-    parser.add_argument("--num_st_iters")
+    parser.add_argument("--min_confidence_threshold", default=0.51)
+    parser.add_argument("--num_st_iters", default=2)
     parser.add_argument("--use_augmentation", default=True)
     parser.add_argument("--increase_attention_dropout_amount", default=None)
     parser.add_argument("--increase_classifier_dropout_amount", default=None)
