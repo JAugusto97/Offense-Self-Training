@@ -481,11 +481,6 @@ class NoisyStudent:
         augmented_dataloader = DataLoader(augmentedset, sampler=augmented_sampler, batch_size=self.batch_size)
         amnt_new_samples_pos = len(augmented_df[augmented_df["label"] == 1])
         amnt_new_samples_neg = len(augmented_df[augmented_df["label"] == 0])
-        logging.debug(
-            "Added to train set:\n"
-            f"\tNew + samples: {amnt_new_samples_pos}\n"
-            f"\tNew - Samples: {amnt_new_samples_neg}"
-        )
 
         return augmented_dataloader, amnt_new_samples_pos, amnt_new_samples_neg
 
