@@ -1,5 +1,5 @@
 download-datasets:
-	gdown https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW -O ./ --foldergdown 
+	gdown https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW -O ./ --folder 
 
 olid-default:
 	python run.py olidv1 \
