@@ -44,7 +44,7 @@ class WeakLabelDataset(Dataset):
         return len(self.text)
 
 
-class NoisyStudent:
+class SelfTrainer:
     def __init__(
         self,
         pretrained_bert_name: Optional[str] = "bert-base-cased",
@@ -72,7 +72,7 @@ class NoisyStudent:
         self.learning_rate = learning_rate
         self.warmup_ratio = warmup_ratio
         self.tokenizer = self.__init_tokenizer()
-        self.num_noisy_iteration = 0
+        self.num_st_iter = 0
         self.model = self.__init_model(self.attention_dropout, self.classifier_dropout)
 
     def __init_model(
@@ -310,7 +310,7 @@ class NoisyStudent:
             historic_loss["steps"].append(step_list)
 
         if dump_train_history:
-            with open(os.path.join("logs", f"train_history-model{self.num_noisy_iteration}.json"), "a+") as f:
+            with open(os.path.join("logs", f"train_history-model{self.num_st_iter}.json"), "a+") as f:
                 json.dump(historic_loss, f)
 
     def predict_batch(self, dataloader: DataLoader) -> List[np.array]:
@@ -374,7 +374,7 @@ class NoisyStudent:
             history["accuracy"] = acc
             history["loss"] = val_loss
 
-            with open(os.path.join("logs", f"test_history-model{self.num_noisy_iteration}.json"), "w") as f:
+            with open(os.path.join("logs", f"test_history-model{self.num_st_iter}.json"), "w") as f:
                 json.dump(history, f)
 
         return val_loss, acc, f1, clf_report
@@ -531,6 +531,8 @@ class NoisyStudent:
         logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
 
         for i in range(num_iters):
+            self.num_st_iter += 1
+
             logging.debug(f"Inferring silver labels for student {i+1}...")
             weak_label_dataloader, num_new_examples_pos, num_new_examples_neg = self.__get_weak_labels(
                 unlabeled_dataloader, current_confidence_threshold

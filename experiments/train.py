@@ -3,9 +3,8 @@ import sys
 sys.path.append("..")
 
 import os
-from noisystudent import NoisyStudent
+from selftraining import SelfTrainer
 import argparse
-import gdown
 from experiments import load_dataset, set_seed, get_logger
 
 
@@ -54,7 +53,7 @@ if __name__ == "__main__":
     train_df = train_df.sample(frac=0.3)
     weak_label_df = weak_label_df.sample(frac=0.3)
 
-    ns = NoisyStudent(
+    st = SelfTrainer(
         pretrained_bert_name=args.pretrained_bert_name,
         device=args.device,
         classifier_dropout=args.classifier_dropout,
@@ -67,7 +66,7 @@ if __name__ == "__main__":
         weight_decay=args.weight_decay,
     )
 
-    ns.fit(
+    st.fit(
         train_df=train_df,
         dev_df=dev_df,
         test_df=test_df,
