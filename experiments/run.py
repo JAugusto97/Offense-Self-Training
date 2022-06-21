@@ -54,6 +54,10 @@ if __name__ == "__main__":
 
     train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset)
 
+    # remove
+    train_df = train_df.sample(frac=0.3)
+    weak_label_df = weak_label_df.sample(frac=0.3)
+
     ns = NoisyStudent(
         pretrained_bert_name=args.pretrained_bert_name,
         device=args.device,
