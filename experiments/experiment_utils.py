@@ -79,7 +79,7 @@ def load_convabuse() -> Tuple[pd.DataFrame]:
     gdown.download_folder(id=folder_id, output=output, quiet=True)
     gdown.download(id=file_id, output=output, quiet=True)
 
-    path = os.path.join("datasets", "convabuse")
+    path = os.path.join("datasets", "ConvAbuse")
 
     unlabeled_path = os.path.join("datasets", "tweets_augmented.csv")
     train_path = os.path.join(path, "ConvAbuseEMNLPtrain.csv")
@@ -115,7 +115,7 @@ def load_olid() -> Tuple[pd.DataFrame]:
     gdown.download_folder(id=folder_id, output=output, quiet=True)
     gdown.download(id=file_id, output=output, quiet=True)
 
-    path = os.path.join("datasets", "olidv1")
+    path = os.path.join("datasets", "OLIDv1.0")
 
     train_path = os.path.join(path, "olid-training-v1.0.tsv")
     test_path = os.path.join(path, "testset-levela.tsv")
