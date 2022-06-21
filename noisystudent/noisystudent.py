@@ -29,18 +29,14 @@ class BertDataset(Dataset):
 
 
 class WeakLabelDataset(Dataset):
-    def __init__(self, df, labels=None):
-        self.text = df.iloc[:, 0].to_list()
-        self.augmented_text = df.iloc[:, 1].to_list()
+    def __init__(self, text, labels=None):
+        self.text = text
         self.labels = labels
 
     def __getitem__(self, idx: int) -> Dict:
         item = {"text": self.text[idx]}
-
         if self.labels is not None:
             item["labels"] = self.labels[idx]
-        if self.augmented_text is not None:
-            item["augmented_text"] = self.augmented_text[idx]
 
         return item
 
@@ -210,14 +206,13 @@ class NoisyStudent:
                 output = self.model(**batch_inputs)
                 # if model is student, train with the noised data aswell
                 if is_student:
-                    text_col = "augmented_text" if use_augmentation else "text"  # TODO: improve this
                     unl_logits = []
                     unl_labels = []
 
                     for _ in range(unl_to_label_batch_ratio):
                         unl_batch = next(iter(weak_label_dataloader))
 
-                        unl_texts = unl_batch[text_col]
+                        unl_texts = unl_batch["text"]
                         unl_inputs = self.tokenize(unl_texts)
                         unl_inputs["labels"] = unl_batch["labels"].clone().detach()
                         unl_batch_inputs = {k: v.to(self.device) for k, v in unl_inputs.items()}
@@ -389,12 +384,10 @@ class NoisyStudent:
         self, unlabeled_dataloader: DataLoader, min_confidence_threshold: float
     ) -> Tuple[DataLoader, int, int]:
         texts = []
-        text_augmented = []
         labels = []
         logits = []
         for unl_batch in tqdm(unlabeled_dataloader, desc="Inferring Silver Labels"):
             unl_texts = unl_batch["text"]
-            unl_text_augmented = unl_batch["augmented_text"]
             unl_inputs = self.tokenize(unl_texts)
 
             # get model predictions
@@ -409,7 +402,6 @@ class NoisyStudent:
             logits.append(unl_logits.cpu().detach().numpy())
             texts.extend(unl_texts)
             labels.extend(batch_labels)
-            text_augmented.extend(unl_text_augmented)
 
         logits = np.concatenate(logits)
         # get all examples with high confidence
@@ -461,7 +453,6 @@ class NoisyStudent:
         if len(high_confidence_idxs) < 1:
             raise Exception(f"Could not select any silver labels using {min_confidence_threshold*100:.2f}% threshold.")
         # get selected elements from each data field by their idxs
-        selected_text_augmented = list(map(text_augmented.__getitem__, high_confidence_idxs))
         selected_text = list(map(texts.__getitem__, high_confidence_idxs))
         selected_label = np.argmax(unl_softmax[high_confidence_idxs], axis=1)
         selected_confidence = np.max(unl_softmax[high_confidence_idxs], axis=1)
@@ -469,13 +460,12 @@ class NoisyStudent:
         augmented_df = pd.DataFrame(
             {
                 "text": selected_text,
-                "text_augmented": selected_text_augmented,
                 "label": selected_label,
                 "confidence": selected_confidence,
             }
         )
 
-        augmentedset = WeakLabelDataset(augmented_df, labels=augmented_df["label"].to_list())
+        augmentedset = WeakLabelDataset(text=augmented_df["text"].to_list(), labels=augmented_df["label"].to_list())
 
         augmented_sampler = RandomSampler(augmentedset)
         augmented_dataloader = DataLoader(augmentedset, sampler=augmented_sampler, batch_size=self.batch_size)
@@ -508,7 +498,14 @@ class NoisyStudent:
         train_dataloader = self.__get_dataloader_from_df(train_df)
         test_dataloader = self.__get_dataloader_from_df(test_df)
 
-        weaklabelset = WeakLabelDataset(unlabeled_df)
+        if use_augmentation:
+            text = unlabeled_df.iloc[:, 0].to_list()
+            text.extend(unlabeled_df.iloc[:, 1].to_list())
+        else:
+            text = unlabeled_df.iloc[:, 0].to_list()
+        logging.debug(f"Weakly Labelled Set Size: {len(text)}")
+
+        weaklabelset = WeakLabelDataset(text=text)
         sampler = RandomSampler(weaklabelset)
         unlabeled_dataloader = DataLoader(weaklabelset, sampler=sampler, batch_size=self.batch_size)
 
