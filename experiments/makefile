@@ -1,3 +1,6 @@
+download-datasets:
+	gdown https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW -O ./ --foldergdown 
+
 olid-default:
 	python run.py olidv1 \
 		--min_confidence_threshold 0.9 \
