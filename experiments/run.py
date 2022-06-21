@@ -43,13 +43,14 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()
 
-    folder_url = "https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW"
-    gdown.download_folder(id=folder_url, output=".", quiet=True)
-
     log_path = os.path.join("logs", f"{args.exp_name}.log")
     logger = get_logger(level="info", filename=log_path)
 
     set_seed(args.seed)
+
+    logger.debug("Downloading Datasets.")
+    folder_url = "https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW"
+    gdown.download_folder(id=folder_url, output="./", quiet=True)
 
     train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset)
 
