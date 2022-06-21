@@ -14,12 +14,13 @@ def get_args():
     parser.add_argument("dataset", type=str)
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--exp_name", default="experiment", type=str)
+    parser.add_argument("--loglevel", default="info", type=str)
 
     # bert args
     parser.add_argument("--pretrained_bert_name", default="bert-base-cased", type=str)
     parser.add_argument("--max_seq_len", default=128, type=int)
     parser.add_argument("--batch_size", default=32, type=int)
-    parser.add_argument("--device", default="cuda", type="str")
+    parser.add_argument("--device", default="cuda", type=str)
     parser.add_argument("--weight_decay", default=1e-2, type=float)
     parser.add_argument("--num_train_epochs", default=2, type=int)
     parser.add_argument("--learning_rate", default=5e-5, type=float)
@@ -30,21 +31,20 @@ def get_args():
     # ST args
     parser.add_argument("--min_confidence_threshold", default=0.51, type=float)
     parser.add_argument("--num_st_iters", default=3, type=int)
-    parser.add_argument("--use_augmentation", default=True, type=bool)
+    parser.add_argument("--use_augmentation", const=True, default=False, nargs="?", type=bool)
     parser.add_argument("--increase_attention_dropout_amount", default=None, type=float)
     parser.add_argument("--increase_classifier_dropout_amount", default=None, type=float)
     parser.add_argument("--increase_confidence_threshold_amount", default=None, type=float)
 
     args = parser.parse_args()
-
     return args
 
 
 if __name__ == "__main__":
     args = get_args()
-
+    print(args.use_augmentation)
     log_path = os.path.join("logs", f"{args.exp_name}.log")
-    logger = get_logger(level="info", filename=log_path)
+    logger = get_logger(level=args.loglevel, filename=log_path)
 
     set_seed(args.seed)
 
