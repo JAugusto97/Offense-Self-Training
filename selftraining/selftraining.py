@@ -495,6 +495,7 @@ class SelfTrainer:
 
         # train teacher model
         logging.info("Training Base Classifier...")
+        start = time.time()
         self.__train(
             train_dataloader=train_dataloader,
             dev_dataloader=dev_dataloader,
@@ -503,10 +504,13 @@ class SelfTrainer:
         )
 
         _, acc, f1, clf_report = self.score(test_dataloader)
+        end = time.time()
         logging.info("Classification Report\n" + clf_report)
         logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
+        logging.info(f"Model {self.num_st_iter} Runetime: {end-start}")
 
         for i in range(num_iters):
+            start = time.time()
             self.num_st_iter += 1
 
             logging.debug(f"Inferring silver labels for student {i+1}...")
@@ -540,5 +544,7 @@ class SelfTrainer:
             )
 
             _, acc, f1, clf_report = self.score(test_dataloader)
+            end = time.time()
             logging.info("Classification Report:\n" + clf_report)
             logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
+            logging.info(f"Model {self.num_st_iter} Runetime: {end-start}")

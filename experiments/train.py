@@ -5,6 +5,7 @@ sys.path.append("..")
 import os
 from selftraining import SelfTrainer
 import argparse
+import time
 from experiments import load_dataset, set_seed, get_logger
 
 
@@ -41,7 +42,6 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-
     log_path = os.path.join("logs", f"{args.exp_name}.log")
     logger = get_logger(level=args.loglevel, filename=log_path)
 
@@ -66,6 +66,7 @@ if __name__ == "__main__":
         weight_decay=args.weight_decay,
     )
 
+    start = time.time()
     st.fit(
         train_df=train_df,
         dev_df=dev_df,
@@ -78,3 +79,7 @@ if __name__ == "__main__":
         increase_confidence_threshold_amount=args.increase_confidence_threshold_amount,
         use_augmentation=args.use_augmentation,
     )
+    end = time.time()
+    runtime = end - start
+
+    logger.info(f"Total Runtime: {runtime}")
