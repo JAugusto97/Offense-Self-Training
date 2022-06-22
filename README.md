@@ -18,13 +18,16 @@ Online social media is rife with offensive and hateful comments, prompting the n
 3. Download the data sets.
     >make download-datasets
 4. Run one of the experiments:
+    >make experiment-name
+
+    Where "experiment-name" should be one of the following:
     * olid-default
     * olid-ns
     * convabuse-default
     * convabuse-ns
     * mhs-default
     * mhs-ns
-    >make experiment-name
+
 
 ## Citing
 tba.
