@@ -149,7 +149,7 @@ def load_dataset(dataset_name):
     else:
         raise Exception(f"{dataset_name} is not a valid dataset.")
 
-    loaded_log += f"""
+    loaded_log = f"""
             Loaded {dataset_name}
         Train Size: {len(train_df)}
             Positives: {len(train_df[train_df.iloc[:, 1] == 1])}
