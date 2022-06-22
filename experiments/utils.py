@@ -139,23 +139,18 @@ def get_stratified_split(df: pd.DataFrame, num_split: int, seed: Optional[int] =
     return splits[num_split]
 
 
-def load_dataset(dataset_name, few_shot=False, num_split=None):
+def load_dataset(dataset_name):
     if dataset_name == "olidv1":
         train_df, dev_df, test_df, unlabeled_df = load_olid()
     elif dataset_name == "convabuse":
         train_df, dev_df, test_df, unlabeled_df = load_convabuse()
-    elif dataset_name == "measuring_hate_speech":
+    elif dataset_name == "mhs":
         train_df, dev_df, test_df, unlabeled_df = load_mhs()
+    else:
+        raise Exception(f"{dataset_name} is not a valid dataset.")
 
-    if few_shot:
-        train_df = get_stratified_split(train_df, num_split)
-
-    loaded_log = f"""\tLoaded {dataset_name}"""
-
-    if few_shot:
-        loaded_log += f" - Split {num_split}"
-
-    loaded_log += f"""\n
+    loaded_log += f"""
+            Loaded {dataset_name}
         Train Size: {len(train_df)}
             Positives: {len(train_df[train_df.iloc[:, 1] == 1])}
             Negatives: {len(train_df[train_df.iloc[:, 1] == 0])}
@@ -167,6 +162,7 @@ def load_dataset(dataset_name, few_shot=False, num_split=None):
             Positives: {len(dev_df[dev_df.iloc[:, 1] == 1])}
             Negatives: {len(dev_df[dev_df.iloc[:, 1] == 0])}
         """
+
     loaded_log += f"""
         Test Size: {len(test_df)}
             Positives: {len(test_df[test_df.iloc[:, 1] == 1])}
