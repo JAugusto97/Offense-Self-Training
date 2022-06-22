@@ -507,7 +507,7 @@ class SelfTrainer:
         end = time.time()
         logging.info("Classification Report\n" + clf_report)
         logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
-        logging.info(f"Model {self.num_st_iter} Runetime: {end-start}")
+        logging.info(f"Model {self.num_st_iter} runtime: {(end-start)/60:.2f} minutes.")
 
         for i in range(num_iters):
             start = time.time()
@@ -547,4 +547,4 @@ class SelfTrainer:
             end = time.time()
             logging.info("Classification Report:\n" + clf_report)
             logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
-            logging.info(f"Model {self.num_st_iter} Runetime: {end-start}")
+            logging.info(f"Model {self.num_st_iter} runtime: {(end-start)/60:.2f} minutes.")

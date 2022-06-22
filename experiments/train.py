@@ -42,16 +42,12 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
+    set_seed(args.seed)
+
     log_path = os.path.join("logs", f"{args.exp_name}.log")
     logger = get_logger(level=args.loglevel, filename=log_path)
 
-    set_seed(args.seed)
-
     train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset)
-
-    # remove
-    train_df = train_df.sample(frac=0.3)
-    weak_label_df = weak_label_df.sample(frac=0.3)
 
     st = SelfTrainer(
         pretrained_bert_name=args.pretrained_bert_name,
@@ -82,4 +78,4 @@ if __name__ == "__main__":
     end = time.time()
     runtime = end - start
 
-    logger.info(f"Total Runtime: {runtime}")
+    logger.info(f"\nTotal Runtime: {runtime/60:.2f} minutes.")
