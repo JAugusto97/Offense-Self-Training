@@ -411,41 +411,17 @@ class SelfTrainer:
         # select same amount of positives and negatives (limited by the class with least examples)
         size = min(len(high_confidence_positive_idxs), len(high_confidence_negative_idxs))
 
-        # both classes have at least one example
+        # both classes must have at least one example
         if size > 0:
             high_confidence_negative_idxs = np.random.choice(high_confidence_negative_idxs, size=size, replace=False)
             high_confidence_positive_idxs = np.random.choice(high_confidence_positive_idxs, size=size, replace=False)
 
-        # Problem - the model either:
-        # a) predicted all the samples as one of the classes
-        # b) high confidence predictions all belong to one of the classes
-        # Solution:
-        # for scenario a - return examples only for that class
-        # for scenario b - get random samples from the class with no predicted samples
         else:
-            if len(high_confidence_negative_idxs) > 0:  # has negative samples
-                size = len(high_confidence_negative_idxs)
-                high_confidence_negative_idxs = np.random.choice(
-                    high_confidence_negative_idxs, size=size, replace=False
-                )
-                try:
-                    high_confidence_positive_idxs = np.random.choice(
-                        np.where(unl_softmax[:, 1] > 0.5)[0], size=size, replace=False
-                    )
-                except ValueError:
-                    high_confidence_positive_idxs = np.array([])
-            else:  # has positive samples
-                size = len(high_confidence_positive_idxs)
-                try:
-                    high_confidence_negative_idxs = np.random.choice(
-                        np.where(unl_softmax[:, 0] > 0.5)[0], size=size, replace=False
-                    )
-                except ValueError:
-                    high_confidence_negative_idxs = np.array([])
-
-                high_confidence_positive_idxs = np.random.choice(
-                    high_confidence_positive_idxs, size=size, replace=False
-                )
+            if len(high_confidence_positive_idxs) == 0:
+                empty_class = "positive"
+            else:
+                empty_class = "negative"
+            raise Exception(f"No examples predicted for the {empty_class} class.")
 
         high_confidence_idxs = np.append(high_confidence_positive_idxs, high_confidence_negative_idxs)
         high_confidence_idxs = [int(v) for v in high_confidence_idxs]
