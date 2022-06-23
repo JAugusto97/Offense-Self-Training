@@ -417,11 +417,7 @@ class SelfTrainer:
             high_confidence_positive_idxs = np.random.choice(high_confidence_positive_idxs, size=size, replace=False)
 
         else:
-            if len(high_confidence_positive_idxs) == 0:
-                empty_class = "positive"
-            else:
-                empty_class = "negative"
-            raise Exception(f"No examples predicted for the {empty_class} class.")
+            raise Exception(f"No examples predicted for the one of the classes.")
 
         high_confidence_idxs = np.append(high_confidence_positive_idxs, high_confidence_negative_idxs)
         high_confidence_idxs = [int(v) for v in high_confidence_idxs]
@@ -525,6 +521,7 @@ class SelfTrainer:
 
             if increase_attention_dropout_amount is not None:
                 current_attention_dropout += increase_attention_dropout_amount
+            if increase_classifier_dropout_amount is not None:
                 current_classifier_dropout += increase_classifier_dropout_amount
             if increase_confidence_threshold_amount is not None:
                 current_confidence_threshold += increase_confidence_threshold_amount
