@@ -452,10 +452,10 @@ class SelfTrainer:
         test_dataloader = self.__get_dataloader_from_df(test_df)
 
         if use_augmentation:
-            text = unlabeled_df.iloc[:, 1].to_list()
-            text.extend(unlabeled_df.iloc[:, 3].to_list())
+            text = unlabeled_df.iloc[:, 0].to_list()
+            text.extend(unlabeled_df.iloc[:, 1].to_list())
         else:
-            text = unlabeled_df.iloc[:, 1].to_list()
+            text = unlabeled_df.iloc[:, 0].to_list()
         logging.debug(f"Weakly Labelled Set Size: {len(text)}")
 
         weaklabelset = WeakLabelDataset(text=text)
