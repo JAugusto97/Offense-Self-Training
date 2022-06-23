@@ -43,7 +43,6 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()
     set_seed(args.seed)
-    print(args.weight_decay)
 
     log_path = os.path.join("logs", f"{args.exp_name}.log")
     logger = get_logger(level=args.loglevel, filename=log_path)
