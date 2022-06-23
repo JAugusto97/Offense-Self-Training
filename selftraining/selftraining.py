@@ -49,8 +49,8 @@ class SelfTrainer:
         self,
         pretrained_bert_name: Optional[str] = "bert-base-cased",
         max_seq_len: Optional[int] = 128,
-        attention_dropout: Optional[float] = None,
-        classifier_dropout: Optional[float] = None,
+        attention_dropout: Optional[float] = 0.1,
+        classifier_dropout: Optional[float] = 0.1,
         weight_decay: Optional[float] = 1e-2,
         num_train_epochs: Optional[int] = 2,
         batch_size: Optional[int] = 32,
@@ -93,8 +93,6 @@ class SelfTrainer:
             if classifier_dropout is not None:
                 model.config.classifier_dropout = classifier_dropout
 
-        model.to(self.device)
-
         return model
 
     def __init_tokenizer(self) -> AutoTokenizer:
@@ -119,25 +117,10 @@ class SelfTrainer:
         return dataloader
 
     def __get_optimizer(self, train_dataloader: DataLoader) -> Tuple[torch.optim.Optimizer, torch.optim.Optimizer]:
-        if self.weight_decay is not None:
-            no_decay = ["bias", "LayerNorm.weight"]
-            parameters = [
-                {
-                    "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
-                    "weight_decay": self.weight_decay,
-                },
-                {
-                    "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
-                    "weight_decay": 0.0,
-                },
-            ]
-        else:
-            parameters = self.model.parameters()
-
         total_steps = len(train_dataloader) * self.num_train_epochs
         num_warmup_steps = int(total_steps * self.warmup_ratio)
 
-        optimizer = torch.optim.AdamW(parameters, lr=self.learning_rate)
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         scheduler = get_scheduler(
             "linear", optimizer=optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=total_steps
         )
@@ -470,10 +453,10 @@ class SelfTrainer:
         test_dataloader = self.__get_dataloader_from_df(test_df)
 
         if use_augmentation:
-            text = unlabeled_df.iloc[:, 0].to_list()
-            text.extend(unlabeled_df.iloc[:, 1].to_list())
+            text = unlabeled_df.iloc[:, 1].to_list()
+            text.extend(unlabeled_df.iloc[:, 3].to_list())
         else:
-            text = unlabeled_df.iloc[:, 0].to_list()
+            text = unlabeled_df.iloc[:, 1].to_list()
         logging.debug(f"Weakly Labelled Set Size: {len(text)}")
 
         weaklabelset = WeakLabelDataset(text=text)
