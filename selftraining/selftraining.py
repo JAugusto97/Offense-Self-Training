@@ -404,11 +404,9 @@ class SelfTrainer:
             raise Exception(f"No examples predicted for the one of the classes.")
 
         high_confidence_idxs = np.append(high_confidence_positive_idxs, high_confidence_negative_idxs)
-        high_confidence_idxs = [int(v) for v in high_confidence_idxs]
-        if len(high_confidence_idxs) < 1:
-            raise Exception(f"Could not select any silver labels using {min_confidence_threshold*100:.2f}% threshold.")
+
         # get selected elements from each data field by their idxs
-        selected_text = list(map(texts.__getitem__, high_confidence_idxs))
+        selected_text = list(map(texts.__getitem__, high_confidence_idxs.tolist()))
         selected_label = np.argmax(unl_softmax[high_confidence_idxs], axis=1)
         selected_confidence = np.max(unl_softmax[high_confidence_idxs], axis=1)
 
@@ -420,10 +418,10 @@ class SelfTrainer:
             }
         )
 
-        augmentedset = WeakLabelDataset(text=augmented_df["text"].to_list(), labels=augmented_df["label"].to_list())
-
+        augmentedset = WeakLabelDataset(text=selected_text, labels=selected_label)
         augmented_sampler = RandomSampler(augmentedset)
         augmented_dataloader = DataLoader(augmentedset, sampler=augmented_sampler, batch_size=self.batch_size)
+
         amnt_new_samples_pos = len(augmented_df[augmented_df["label"] == 1])
         amnt_new_samples_neg = len(augmented_df[augmented_df["label"] == 0])
 
