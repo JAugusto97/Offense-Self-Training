@@ -125,6 +125,7 @@ class SelfTrainer:
             "linear", optimizer=optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=total_steps
         )
 
+        self.model.to(self.device)
         return optimizer, scheduler
 
     def __train(
