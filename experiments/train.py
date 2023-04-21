@@ -57,8 +57,7 @@ if __name__ == "__main__":
 
     logger = get_logger(level=args.loglevel, filename=os.path.join(log_path, "run.log"))
     train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset)
-    
-    train_df = train_df.sample(100)
+
     st = SelfTrainer(
         pretrained_bert_name=args.pretrained_bert_name,
         device=args.device,
