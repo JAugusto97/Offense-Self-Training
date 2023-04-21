@@ -56,6 +56,7 @@ class SelfTrainer:
         batch_size: Optional[int] = 32,
         learning_rate: Optional[float] = 5e-5,
         warmup_ratio: Optional[float] = 0.15,
+        use_augmentation: Optional[bool] = False,
         device: Optional[str] = None,
         seed: Optional[int] = 42,
         exp_name: Optional[str] = None
@@ -78,6 +79,7 @@ class SelfTrainer:
         self.model = self.__init_model(self.attention_dropout, self.classifier_dropout)
         self.seed = seed
         self.exp_name = exp_name
+        self.use_augmentation = use_augmentation
 
     def __init_model(
         self, attention_dropout: Optional[float], classifier_dropout: Optional[float]
@@ -486,12 +488,14 @@ class SelfTrainer:
             )
 
             text = unlabeled_df.loc[inferred_idxs, "text"].to_list()
-            text_augmented = unlabeled_df.loc[inferred_idxs, "text_augmented"].to_list()
 
-            # propagate labels from the original samples to the augmented samples
-            inferred_labels = inferred_labels * 2
+            if self.use_augmentation:
+                text_augmented = unlabeled_df.loc[inferred_idxs, "text_augmented"].to_list()
+                text = text + text_augmented
+                # propagate labels from the original samples to the augmented samples
+                inferred_labels = inferred_labels * 2
 
-            weaklabelset = WeakLabelDataset(text=text+text_augmented, labels=inferred_labels)
+            weaklabelset = WeakLabelDataset(text=text, labels=inferred_labels)
             sampler = RandomSampler(weaklabelset)
             weak_label_dataloader = DataLoader(weaklabelset, sampler=sampler, batch_size=self.batch_size)
 

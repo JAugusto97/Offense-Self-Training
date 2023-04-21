@@ -56,7 +56,7 @@ if __name__ == "__main__":
         os.mkdir(test_path)
 
     logger = get_logger(level=args.loglevel, filename=os.path.join(log_path, "run.log"))
-    train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset, args.use_augmentation)
+    train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset)
 
     st = SelfTrainer(
         pretrained_bert_name=args.pretrained_bert_name,
@@ -69,6 +69,7 @@ if __name__ == "__main__":
         learning_rate=args.learning_rate,
         warmup_ratio=args.warmup_ratio,
         weight_decay=args.weight_decay,
+        use_augmentation=args.use_augmentation,
         seed=args.seed,
         exp_name=args.exp_name
     )

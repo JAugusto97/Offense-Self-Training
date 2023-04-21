@@ -121,7 +121,7 @@ def get_stratified_split(df: pd.DataFrame, num_split: int, seed: Optional[int] =
     return splits[num_split]
 
 
-def load_dataset(dataset_name, with_augmentation):
+def load_dataset(dataset_name):
     if dataset_name == "olidv1":
         train_df, dev_df, test_df = load_olid()
     elif dataset_name == "convabuse":
@@ -132,11 +132,11 @@ def load_dataset(dataset_name, with_augmentation):
         raise Exception(f"{dataset_name} is not a valid dataset.")
 
     
-    unlabeled_df = pd.read_csv("datasets/tweets_augmented.csv").sample(500)
+    unlabeled_df = pd.read_csv("datasets/tweets_augmented.csv")
     unlabeled_df = unlabeled_df.drop_duplicates(subset=["text"])
     unlabeled_df = unlabeled_df.drop_duplicates(subset=["text_augmented"])
     unlabeled_df = unlabeled_df.reset_index(drop=True)
-    
+
     loaded_log = f"""
             Loaded {dataset_name}
         Train Size: {len(train_df)}
