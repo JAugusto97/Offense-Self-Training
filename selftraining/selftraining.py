@@ -137,7 +137,6 @@ class SelfTrainer:
     def __train(
         self,
         train_dataloader: DataLoader,
-        evaluate_during_training=False,
         is_student=False,
         dump_train_history: Optional[bool] = True,
         clip_grad: Optional[bool] = True,
@@ -151,6 +150,10 @@ class SelfTrainer:
         logging.debug("Start training...\n")
 
         historic_loss = {"loss": [], "labeled_loss": [], "unlabeled_loss": [], "steps": [], "unl_steps": []}
+
+        best_state_dict = self.model.state_dict()
+        lowest_val_loss = 1_000_000
+        val_loss = 0.0
         for epoch_i in range(self.num_train_epochs):
             if is_student:
                 logging.debug(
@@ -247,6 +250,7 @@ class SelfTrainer:
                 optimizer.step()
                 scheduler.step()
                 progress_bar.update(1)
+                progress_bar.set_description(f'Training Loss={loss.item():.4f} | Validation Loss={val_loss:.4f}')
 
                 if (step % print_each_n_steps == 0 and step != 0) or (step == len(train_dataloader) - 1):
                     time_elapsed = time.time() - t0_batch
@@ -272,26 +276,29 @@ class SelfTrainer:
 
             # Calculate the average loss over the entire training data
             avg_train_loss = total_loss / len(train_dataloader)
-            if evaluate_during_training:
-                val_loss, val_accuracy, _, _ = self.score(dev_dataloader, dump_test_history=False)
-                time_elapsed = time.time() - t0_epoch
+            val_loss, val_accuracy, _, _ = self.score(dev_dataloader, dump_test_history=False)
+            time_elapsed = time.time() - t0_epoch
 
-                if is_student:
-                    logging.debug("-" * 130)
-                    logging.debug(
-                        f"{epoch_i + 1:^7} | {'-':^14} | {'-':^16} | {avg_train_loss:^11.6f} | "
-                        f"{'-':^15} | {'-':^13}| {val_loss:^10.6f} | "
-                        f"{val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
-                    )
-                    logging.debug("-" * 130)
-                else:
-                    logging.debug("-" * 80)
-                    logging.debug(
-                        f"{epoch_i + 1:^7} | {'-':^12} | {avg_train_loss:^12.6f} | "
-                        f"{val_loss:^10.6f} | {val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
-                    )
-                    logging.debug("-" * 80)
+            if is_student:
+                logging.debug("-" * 130)
+                logging.debug(
+                    f"{epoch_i + 1:^7} | {'-':^14} | {'-':^16} | {avg_train_loss:^11.6f} | "
+                    f"{'-':^15} | {'-':^13}| {val_loss:^10.6f} | "
+                    f"{val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
+                )
+                logging.debug("-" * 130)
+            else:
+                logging.debug("-" * 80)
+                logging.debug(
+                    f"{epoch_i + 1:^7} | {'-':^12} | {avg_train_loss:^12.6f} | "
+                    f"{val_loss:^10.6f} | {val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
+                )
+                logging.debug("-" * 80)
             logging.debug("\n")
+
+            if val_loss < lowest_val_loss:
+                lowest_val_loss = val_loss
+                best_state_dict = self.model.state_dict()
 
             historic_loss["loss"].append(loss_list)
             historic_loss["labeled_loss"].append(lab_loss_list)
@@ -302,6 +309,8 @@ class SelfTrainer:
         if dump_train_history:
             with open(os.path.join("logs", self.exp_name, f"seed{self.seed}", "train", f"model{self.num_st_iter}.json"), "a+") as f:
                 json.dump(historic_loss, f)
+
+        self.model.load_state_dict(best_state_dict) # load best model at the end
 
     def predict_batch(self, dataloader: DataLoader) -> List[np.array]:
         self.model.eval()
@@ -464,7 +473,6 @@ class SelfTrainer:
         self.__train(
             train_dataloader=train_dataloader,
             dev_dataloader=dev_dataloader,
-            evaluate_during_training=True,
             is_student=False,
         )
 
@@ -520,7 +528,6 @@ class SelfTrainer:
             self.__train(
                 train_dataloader=train_dataloader,
                 dev_dataloader=dev_dataloader,
-                evaluate_during_training=True,
                 is_student=True,
                 weak_label_dataloader=weak_label_dataloader,
                 unl_to_label_batch_ratio=unl_to_label_batch_ratio,
