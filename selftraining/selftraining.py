@@ -57,6 +57,8 @@ class SelfTrainer:
         learning_rate: Optional[float] = 5e-5,
         warmup_ratio: Optional[float] = 0.15,
         device: Optional[str] = None,
+        seed: Optional[int] = 42,
+        exp_name: Optional[str] = None
     ) -> None:
         if device is None:
             self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -74,6 +76,8 @@ class SelfTrainer:
         self.tokenizer = self.__init_tokenizer()
         self.num_st_iter = 0
         self.model = self.__init_model(self.attention_dropout, self.classifier_dropout)
+        self.seed = seed
+        self.exp_name = exp_name
 
     def __init_model(
         self, attention_dropout: Optional[float], classifier_dropout: Optional[float]
@@ -294,7 +298,7 @@ class SelfTrainer:
             historic_loss["steps"].append(step_list)
 
         if dump_train_history:
-            with open(os.path.join("logs", f"train_history-model{self.num_st_iter}.json"), "a+") as f:
+            with open(os.path.join("logs", self.exp_name, f"seed{self.seed}", "train", f"model{self.num_st_iter}.json"), "a+") as f:
                 json.dump(historic_loss, f)
 
     def predict_batch(self, dataloader: DataLoader) -> List[np.array]:
@@ -358,7 +362,7 @@ class SelfTrainer:
             history["accuracy"] = acc
             history["loss"] = val_loss
 
-            with open(os.path.join("logs", f"test_history-model{self.num_st_iter}.json"), "w") as f:
+            with open(os.path.join("logs", self.exp_name, f"seed{self.seed}", "test", f"model{self.num_st_iter}.json"), "w") as f:
                 json.dump(history, f)
 
         return val_loss, acc, f1, clf_report
@@ -403,29 +407,15 @@ class SelfTrainer:
         else:
             raise Exception(f"No examples predicted for the one of the classes.")
 
-        high_confidence_idxs = np.append(high_confidence_positive_idxs, high_confidence_negative_idxs)
+        high_confidence_idxs = np.append(high_confidence_positive_idxs, high_confidence_negative_idxs).tolist()
 
         # get selected elements from each data field by their idxs
-        selected_text = list(map(texts.__getitem__, high_confidence_idxs.tolist()))
-        selected_label = np.argmax(unl_softmax[high_confidence_idxs], axis=1)
-        selected_confidence = np.max(unl_softmax[high_confidence_idxs], axis=1)
+        # selected_text = list(map(texts.__getitem__, high_confidence_idxs.tolist()))
+        selected_labels = np.argmax(unl_softmax[high_confidence_idxs], axis=1).tolist()
+        # selected_confidence = np.max(unl_softmax[high_confidence_idxs], axis=1)
 
-        augmented_df = pd.DataFrame(
-            {
-                "text": selected_text,
-                "label": selected_label,
-                "confidence": selected_confidence,
-            }
-        )
 
-        augmentedset = WeakLabelDataset(text=selected_text, labels=selected_label)
-        augmented_sampler = RandomSampler(augmentedset)
-        augmented_dataloader = DataLoader(augmentedset, sampler=augmented_sampler, batch_size=self.batch_size)
-
-        amnt_new_samples_pos = len(augmented_df[augmented_df["label"] == 1])
-        amnt_new_samples_neg = len(augmented_df[augmented_df["label"] == 0])
-
-        return augmented_dataloader, amnt_new_samples_pos, amnt_new_samples_neg
+        return high_confidence_idxs, selected_labels
 
     def tokenize(self, texts: List[str]) -> BatchEncoding:
         tokenized = self.tokenizer(
@@ -444,19 +434,14 @@ class SelfTrainer:
         dev_df: Optional[pd.DataFrame] = None,
         increase_attention_dropout_amount: Optional[float] = None,
         increase_classifier_dropout_amount: Optional[float] = None,
-        increase_confidence_threshold_amount: Optional[float] = None,
-        use_augmentation: Optional[bool] = True,
+        increase_confidence_threshold_amount: Optional[float] = None
     ):
         # get dataloaders
         train_dataloader = self.__get_dataloader_from_df(train_df)
         test_dataloader = self.__get_dataloader_from_df(test_df)
 
-        if use_augmentation:
-            text = unlabeled_df.iloc[:, 0].to_list()
-            text.extend(unlabeled_df.iloc[:, 1].to_list())
-        else:
-            text = unlabeled_df.iloc[:, 0].to_list()
-        logging.debug(f"Weakly Labelled Set Size: {len(text)}")
+     
+        text = unlabeled_df.loc[:, "text"].to_list()
 
         weaklabelset = WeakLabelDataset(text=text)
         sampler = RandomSampler(weaklabelset)
@@ -487,15 +472,30 @@ class SelfTrainer:
         logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
         logging.info(f"Model {self.num_st_iter} runtime: {(end-start)/60:.2f} minutes.")
 
-        for i in range(num_iters):
+        base_f1 = f1
+        best_f1 = base_f1
+        best_st_iter = 0
+        for i in range(1, num_iters+1):
             start = time.time()
             self.num_st_iter += 1
-
-            logging.debug(f"Inferring silver labels for student {i+1}...")
-            weak_label_dataloader, num_new_examples_pos, num_new_examples_neg = self.__get_weak_labels(
+            
+            # make inference on the unlabeled dataset without augmentation
+            logging.debug(f"Inferring silver labels for student {i}...")
+            inferred_idxs, inferred_labels = self.__get_weak_labels(
                 unlabeled_dataloader, current_confidence_threshold
             )
-            logging.info(f"Added {num_new_examples_neg} Negative and {num_new_examples_pos} Positive samples.")
+
+            text = unlabeled_df.loc[inferred_idxs, "text"].to_list()
+            text_augmented = unlabeled_df.loc[inferred_idxs, "text_augmented"].to_list()
+
+            # propagate labels from the original samples to the augmented samples
+            inferred_labels = inferred_labels * 2
+
+            weaklabelset = WeakLabelDataset(text=text+text_augmented, labels=inferred_labels)
+            sampler = RandomSampler(weaklabelset)
+            weak_label_dataloader = DataLoader(weaklabelset, sampler=sampler, batch_size=self.batch_size)
+
+            # logging.info(f"Added {num_new_examples_neg} Negative and {num_new_examples_pos} Positive samples.")
 
             trainset_steps = int(np.ceil(len(train_dataloader.dataset) / self.batch_size))
             weaklabelset_steps = int(np.ceil(len(weak_label_dataloader.dataset) / self.batch_size))
@@ -512,7 +512,7 @@ class SelfTrainer:
             self.model = self.__init_model(current_attention_dropout, current_classifier_dropout)
 
             # train student model
-            logging.info(f"Training Student {i+1} Classifier...")
+            logging.info(f"Training Student {i} Classifier...")
             self.__train(
                 train_dataloader=train_dataloader,
                 dev_dataloader=dev_dataloader,
@@ -527,3 +527,11 @@ class SelfTrainer:
             logging.info("Classification Report:\n" + clf_report)
             logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
             logging.info(f"Model {self.num_st_iter} runtime: {(end-start)/60:.2f} minutes.")
+
+            if f1 > best_f1:
+                best_f1 = f1
+                best_st_iter = i
+
+        logging.info(f"Best Macro F1-Score: {best_f1*100:.2f}% - Model {best_st_iter}")
+
+        return base_f1, best_f1, best_st_iter
