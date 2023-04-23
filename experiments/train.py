@@ -8,6 +8,7 @@ import argparse
 import time
 import json
 from experiments import load_dataset, set_seed, get_logger
+import torch
 
 
 def get_args():
@@ -56,6 +57,10 @@ if __name__ == "__main__":
         os.mkdir(test_path)
 
     logger = get_logger(level=args.loglevel, filename=os.path.join(log_path, "run.log"))
+    current_device = torch.cuda.current_device()
+    gpu_name = torch.cuda.get_device_name(current_device) if torch.cuda.is_available() else "cpu"
+    logger.info(f"Device: {gpu_name}")
+    
     train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset)
 
     st = SelfTrainer(
