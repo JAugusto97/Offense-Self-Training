@@ -188,9 +188,9 @@ class SelfTrainer:
             unl_step_list = []
 
             # train loop
-            self.model.train()
             loss_fn = torch.nn.CrossEntropyLoss()
             for step, batch in enumerate(train_dataloader):
+                self.model.train()
                 batch_counts += 1
                 batch_inputs = {k: v.to(self.device) for k, v in batch.items()}
 
@@ -275,6 +275,7 @@ class SelfTrainer:
                     t0_batch = time.time()
 
             # Calculate the average loss over the entire training data
+            self.model.eval()
             avg_train_loss = total_loss / len(train_dataloader)
             val_loss, val_accuracy, _, _ = self.score(dev_dataloader, dump_test_history=False)
             time_elapsed = time.time() - t0_epoch
