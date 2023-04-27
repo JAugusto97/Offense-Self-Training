@@ -3,16 +3,18 @@ download-datasets:
 
 olid-default:
 	python train.py olidv1 \
-		--min_confidence_threshold 0.9 \
-		--exp_name olidv1-default
+		--min_confidence_threshold 0.8 \
+		--exp_name olidv1-default \
+		--batch_size 128 \
+		--seed $(SEED)
 
 olid-ns:
 	python train.py olidv1 \
-		--min_confidence_threshold 0.9 \
+		--min_confidence_threshold 0.8 \
 		--use_augmentation \
-		--increase_attention_dropout_amount 0.15 \
-		--increase_classifier_dropout_amount 0.15 \
-		--exp_name olidv1-ns
+		--exp_name olidv1-ns \
+		--batch_size 128 \
+		--seed $(SEED)
 
 convabuse-default:
 	python train.py convabuse \
