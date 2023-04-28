@@ -5,3 +5,6 @@ pandas
 numpy
 tqdm
 gdown
+nlpaug
+sacremoses
+nltk
