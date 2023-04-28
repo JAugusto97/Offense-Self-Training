@@ -7,6 +7,7 @@ from typing import List, Optional, Tuple, Dict
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 from scipy.special import softmax
 from torch.utils.data import DataLoader, RandomSampler, Dataset
@@ -189,6 +190,7 @@ class SelfTrainer:
 
             # train loop
             loss_fn = torch.nn.CrossEntropyLoss()
+            unl_loss, lab_loss = 0, 0
             for step, batch in enumerate(train_dataloader):
                 self.model.train()
                 batch_counts += 1
@@ -235,6 +237,8 @@ class SelfTrainer:
                 total_loss += loss.item()
 
                 loss.backward()
+
+                wandb.log({"loss": loss.item()})
 
                 # historic data
                 loss_list.append(batch_loss / batch_counts)
@@ -477,7 +481,14 @@ class SelfTrainer:
             is_student=False,
         )
 
-        _, acc, f1, clf_report = self.score(test_dataloader)
+        val_loss, acc, f1, clf_report = self.score(test_dataloader)
+        wandb.log({
+            "val_loss": val_loss,
+            "val_f1": f1,
+            "val_acc": acc,
+            "iter": 0 
+        })
+
         end = time.time()
         logging.info("Classification Report\n" + clf_report)
         logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
@@ -495,6 +506,10 @@ class SelfTrainer:
             inferred_idxs, inferred_labels = self.__get_weak_labels(
                 unlabeled_dataloader, current_confidence_threshold
             )
+
+            wandb.log({
+                "num_inferred": len(inferred_idxs),
+            })
 
             text = unlabeled_df.loc[inferred_idxs, "text"].to_list()
 
@@ -534,7 +549,15 @@ class SelfTrainer:
                 unl_to_label_batch_ratio=unl_to_label_batch_ratio,
             )
 
-            _, acc, f1, clf_report = self.score(test_dataloader)
+            val_loss, acc, f1, clf_report = self.score(test_dataloader)
+
+            wandb.log({
+                "val_loss": val_loss,
+                "val_f1": f1,
+                "val_acc": acc,
+                "iter": i 
+            })
+
             end = time.time()
             logging.info("Classification Report:\n" + clf_report)
             logging.info(f"Macro F1-Score: {f1*100:.2f}% - Accuracy: {acc*100:.2f}%")
