@@ -308,7 +308,7 @@ class SelfTrainer:
             historic_loss["steps"].append(step_list)
 
         if dump_train_history:
-            with open(os.path.join("logs", self.exp_name, f"seed{self.seed}", "train", f"model{self.num_st_iter}.json"), "a+") as f:
+            with open(os.path.join("logs", self.exp_name, self.augmentation_type, f"seed{self.seed}", "train", f"model{self.num_st_iter}.json"), "a+") as f:
                 json.dump(historic_loss, f)
 
         self.model.load_state_dict(best_state_dict) # load best model at the end
@@ -374,7 +374,7 @@ class SelfTrainer:
             history["accuracy"] = acc
             history["loss"] = val_loss
 
-            with open(os.path.join("logs", self.exp_name, f"seed{self.seed}", "test", f"model{self.num_st_iter}.json"), "w") as f:
+            with open(os.path.join("logs", self.exp_name, self.augmentation_type, f"seed{self.seed}", "test", f"model{self.num_st_iter}.json"), "w") as f:
                 json.dump(history, f)
 
         return val_loss, acc, f1, clf_report
