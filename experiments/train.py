@@ -14,6 +14,7 @@ import torch
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", type=str)
+    parser.add_argument("--augmentation_type", choices=["backtranslation", "synonym_substitution", "word_swap"])
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--exp_name", default="experiment", type=str)
     parser.add_argument("--loglevel", default="info", type=str)
@@ -33,7 +34,6 @@ def get_args():
     # ST args
     parser.add_argument("--min_confidence_threshold", default=0.8, type=float)
     parser.add_argument("--num_st_iters", default=5, type=int)
-    parser.add_argument("--use_augmentation", const=True, default=False, nargs="?", type=bool)
     parser.add_argument("--increase_attention_dropout_amount", default=None, type=float)
     parser.add_argument("--increase_classifier_dropout_amount", default=None, type=float)
     parser.add_argument("--increase_confidence_threshold_amount", default=None, type=float)
@@ -46,7 +46,13 @@ if __name__ == "__main__":
     args = get_args()
     set_seed(args.seed)
 
-    log_path = os.path.join("logs", args.exp_name, f"seed{args.seed}")
+    log_path = os.path.join(
+        "logs",
+        args.exp_name,
+        "default" if args.augmentation_type is None else args.augmentation_type,
+        f"seed{args.seed}"
+    )
+
     train_path = os.path.join(log_path, "train")
     test_path = os.path.join(log_path, "test")
     if not os.path.exists(log_path):
@@ -61,7 +67,7 @@ if __name__ == "__main__":
     gpu_name = torch.cuda.get_device_name(current_device) if torch.cuda.is_available() else "cpu"
     logger.info(f"Device: {gpu_name}")
     
-    train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset)
+    train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset, augmentation_type=args.augmentation_type)
 
     st = SelfTrainer(
         pretrained_bert_name=args.pretrained_bert_name,
@@ -74,7 +80,7 @@ if __name__ == "__main__":
         learning_rate=args.learning_rate,
         warmup_ratio=args.warmup_ratio,
         weight_decay=args.weight_decay,
-        use_augmentation=args.use_augmentation,
+        augmentation_type=args.augmentation_type,
         seed=args.seed,
         exp_name=args.exp_name
     )
@@ -101,5 +107,12 @@ if __name__ == "__main__":
     logger.info(f"\nTotal Runtime: {runtime/60:.2f} minutes.")
 
     d = {"base_f1": str(base_f1), "best_f1": str(best_f1), "best_iter": str(best_iter)}
-    with open(os.path.join(log_path, "results.json"), "w") as f:
+    with open(
+        f"logs/results-" +
+            f"{args.exp_name}-" +
+            ("default" if args.augmentation_type is None else args.augmentation_type) +
+            f"-seed{args.seed}" +
+            ".json",
+        "w"
+    ) as f:
         json.dump(d, f)

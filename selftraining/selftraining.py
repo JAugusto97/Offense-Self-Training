@@ -56,7 +56,7 @@ class SelfTrainer:
         batch_size: Optional[int] = 32,
         learning_rate: Optional[float] = 5e-5,
         warmup_ratio: Optional[float] = 0.15,
-        use_augmentation: Optional[bool] = False,
+        augmentation_type: Optional[bool] = None,
         device: Optional[str] = None,
         seed: Optional[int] = 42,
         exp_name: Optional[str] = None
@@ -79,7 +79,7 @@ class SelfTrainer:
         self.model = self.__init_model(self.attention_dropout, self.classifier_dropout)
         self.seed = seed
         self.exp_name = exp_name
-        self.use_augmentation = use_augmentation
+        self.augmentation_type = augmentation_type
 
     def __init_model(
         self, attention_dropout: Optional[float], classifier_dropout: Optional[float]
@@ -498,8 +498,8 @@ class SelfTrainer:
 
             text = unlabeled_df.loc[inferred_idxs, "text"].to_list()
 
-            if self.use_augmentation:
-                text_augmented = unlabeled_df.loc[inferred_idxs, "text_augmented"].to_list()
+            if self.augmentation_type is not None:
+                text_augmented = unlabeled_df.loc[inferred_idxs, self.augmentation_type].to_list()
                 text = text + text_augmented
                 # propagate labels from the original samples to the augmented samples
                 inferred_labels = inferred_labels * 2
