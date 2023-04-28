@@ -18,10 +18,10 @@ def normalize_tweet(text):
     return text
 
 # %%
-df = pd.read_csv("../experiments/datasets/tweets.csv")
+df = pd.read_csv("datasets/tweets.csv")
 df = df[["tweet_id", "text"]]
-df["text_normalized"] = df["text"].apply(normalize_tweet)
-text = df["text_normalized"].tolist()
+df["text"] = df["text"].apply(normalize_tweet)
+text = df["text"].tolist()
 
 # %%
 back_translation_aug = naw.BackTranslationAug(
@@ -42,6 +42,6 @@ randomswap_augmented_text = randomswap_aug.augment(text)
 df["word_swap"] = randomswap_augmented_text
 
 # %%
-df.to_csv("tweets_augmented.csv", index=False)
+df.to_csv("datasets/tweets_augmented.csv", index=False)
 
 
