@@ -121,7 +121,7 @@ def get_stratified_split(df: pd.DataFrame, num_split: int, seed: Optional[int] =
     return splits[num_split]
 
 
-def load_dataset(dataset_name):
+def load_dataset(dataset_name, augmentation_type):
     if dataset_name == "olidv1":
         train_df, dev_df, test_df = load_olid()
     elif dataset_name == "convabuse":
@@ -133,8 +133,9 @@ def load_dataset(dataset_name):
 
     
     unlabeled_df = pd.read_csv("datasets/tweets_augmented.csv")
+    unlabeled_df = unlabeled_df[["text", augmentation_type]]
     unlabeled_df = unlabeled_df.drop_duplicates(subset=["text"])
-    unlabeled_df = unlabeled_df.drop_duplicates(subset=["text_augmented"])
+    unlabeled_df = unlabeled_df.drop_duplicates(subset=[augmentation_type])
     unlabeled_df = unlabeled_df.reset_index(drop=True)
 
     loaded_log = f"""
