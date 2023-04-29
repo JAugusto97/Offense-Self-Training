@@ -1,5 +1,5 @@
 download-datasets:
-	gdown https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW -O ./ --folder 
+	gdown https://drive.google.com/drive/folders/1PFVxeUSDiXdTE4wElkiSe3wajgAW2owB -O ./ --folder 
 
 augment:
 	python augment.py
@@ -9,11 +9,15 @@ olid:
 		--min_confidence_threshold 0.8 \
 		--exp_name olid \
 		--batch_size $(BATCH_SIZE) \
-		--seed $(SEED)
+		--seed $(SEED) \
+		--augmentation_type $(AUGMENTATION_TYPE) \
+		--pretrained_bert_name $(PRETRAINED_NAME)
 
 convabuse:
 	python train.py convabuse \
 		--min_confidence_threshold 0.8 \
 		--exp_name convabuse \
 		--batch_size $(BATCH_SIZE) \
-		--seed $(SEED)
+		--seed $(SEED) \
+		--augmentation_type $(AUGMENTATION_TYPE) \
+		--pretrained_bert_name $(PRETRAINED_NAME)
