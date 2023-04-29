@@ -9,12 +9,13 @@ import time
 import json
 from experiments import load_dataset, set_seed, get_logger
 import torch
+import wandb
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", type=str)
-    parser.add_argument("--augmentation_type", choices=["backtranslation", "synonym_substitution", "word_swap"])
+    parser.add_argument("--augmentation_type", choices=["backtranslation", "synonym_substitution", "word_swap"], default=None)
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--exp_name", default="experiment", type=str)
     parser.add_argument("--loglevel", default="info", type=str)
@@ -62,6 +63,12 @@ if __name__ == "__main__":
     if not os.path.exists(test_path):
         os.mkdir(test_path)
 
+    wandb.init(
+        project="selftrain",
+        name=args.dataset + f"-{'default' if args.augmentation_type is None else args.augmentation_type}",
+        config=vars(args)
+)
+
     logger = get_logger(level=args.loglevel, filename=os.path.join(log_path, "run.log"))
     current_device = torch.cuda.current_device()
     gpu_name = torch.cuda.get_device_name(current_device) if torch.cuda.is_available() else "cpu"
@@ -101,6 +108,8 @@ if __name__ == "__main__":
     runtime = end - start
 
     improvement_f1 = best_f1 - base_f1
+    wandb.log({"best_f1": best_f1, "base_f1": base_f1, "improvement_f1": improvement_f1})
+
     logger.info(f"Base Model F1-Macro: {100*base_f1:.2f}%")
     logger.info(f"Best Model F1-Macro: {100*best_f1:.2f}%")
     logger.info(f"Improvement F1-Macro: {100*improvement_f1:.2f}%")
@@ -116,3 +125,5 @@ if __name__ == "__main__":
         "w"
     ) as f:
         json.dump(d, f)
+
+    wandb.finish()
