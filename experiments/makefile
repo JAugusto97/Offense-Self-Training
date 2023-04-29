@@ -9,13 +9,11 @@ olid:
 		--min_confidence_threshold 0.8 \
 		--exp_name olid \
 		--batch_size $(BATCH_SIZE) \
-		--seed $(SEED) \
-		--augmentation_type $(AUGMENTATION_TYPE)
+		--seed $(SEED)
 
 convabuse:
 	python train.py convabuse \
 		--min_confidence_threshold 0.8 \
 		--exp_name convabuse \
 		--batch_size $(BATCH_SIZE) \
-		--seed $(SEED) \
-		--augmentation_type $(AUGMENTATION_TYPE)
+		--seed $(SEED)
