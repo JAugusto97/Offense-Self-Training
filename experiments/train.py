@@ -15,7 +15,7 @@ import wandb
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", type=str)
-    parser.add_argument("--augmentation_type", choices=["backtranslation", "synonym_substitution", "word_swap"], default=None)
+    parser.add_argument("--augmentation_type", choices=["backtranslation", "synonym_substitution", "word_swap"], default=None, nargs="?", const=None)
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--exp_name", default="experiment", type=str)
     parser.add_argument("--loglevel", default="info", type=str)
