@@ -1,5 +1,5 @@
 download-datasets:
-	gdown https://drive.google.com/drive/u/3/folders/1rGblqA0Wh0vhDFrjasMGvOYpyDiD3jVW -O ./ --folder 
+	gdown https://drive.google.com/drive/folders/1PFVxeUSDiXdTE4wElkiSe3wajgAW2owB -O ./ --folder 
 
 augment:
 	python augment.py
