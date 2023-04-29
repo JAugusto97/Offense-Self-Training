@@ -139,7 +139,6 @@ class SelfTrainer:
         self,
         train_dataloader: DataLoader,
         is_student=False,
-        dump_train_history: Optional[bool] = True,
         clip_grad: Optional[bool] = True,
         dev_dataloader: Optional[DataLoader] = None,
         weak_label_dataloader: Optional[DataLoader] = None,
@@ -147,32 +146,11 @@ class SelfTrainer:
     ):
         optimizer, scheduler = self.__get_optimizer(train_dataloader)
         progress_bar = tqdm(range(self.num_train_epochs * len(train_dataloader)), desc="Training")
-        print_each_n_steps = int(len(train_dataloader) // 4)
-        logging.debug("Start training...\n")
-
-        historic_loss = {"loss": [], "labeled_loss": [], "unlabeled_loss": [], "steps": [], "unl_steps": []}
 
         best_state_dict = self.model.state_dict()
         lowest_val_loss = 1_000_000
         val_loss = 0.0
         for epoch_i in range(self.num_train_epochs):
-            if is_student:
-                logging.debug(
-                    f"{'Epoch':^7} | {'Labeled Batch':^14} | {'Unlabeled Batch':^16} | "
-                    f"{'Train Loss':^11} | {'Labeled Loss':^13} | "
-                    f"{'Unlabeled Loss':^15} | {'Val Loss':^10} | {'Val Acc':^9} | {'Elapsed':^9}"
-                )
-                logging.debug("-" * 130)
-            else:
-                logging.debug(
-                    f"{'Epoch':^7} | {'Train Batch':^12} | "
-                    f"{'Train Loss':^12} | {'Val Loss':^10} | {'Val Acc':^9} | {'Elapsed':^9}"
-                )
-                logging.debug("-" * 80)
-
-            # measure the elapsed time of each epoch
-            t0_epoch, t0_batch = time.time(), time.time()
-
             # reset tracking variables at the beginning of each epoch
             total_loss, batch_loss, batch_unl_loss, batch_lab_loss, batch_counts, = (
                 0,
@@ -238,8 +216,6 @@ class SelfTrainer:
 
                 loss.backward()
 
-                wandb.log({"loss": loss.item()})
-
                 # historic data
                 loss_list.append(batch_loss / batch_counts)
                 step_list.append(step)
@@ -256,66 +232,18 @@ class SelfTrainer:
                 progress_bar.update(1)
                 progress_bar.set_description(f'Training Loss={loss.item():.4f} | Validation Loss={val_loss:.4f}')
 
-                if (step % print_each_n_steps == 0 and step != 0) or (step == len(train_dataloader) - 1):
-                    time_elapsed = time.time() - t0_batch
-
-                    # Print training results
-                    if is_student:
-                        logging.debug(
-                            f"{epoch_i + 1:^7} | {step:^14} | {(step*unl_to_label_batch_ratio):^16} | "
-                            f"{batch_loss / batch_counts:^11.6f} | "
-                            f"{batch_lab_loss / batch_counts:^15.6f} | "
-                            f"{batch_unl_loss / batch_counts :^13.6f} | "
-                            f"{'-':^10} | {'-':^9} | {time_elapsed:^9.2f}"
-                        )
-
-                    else:
-                        logging.debug(
-                            f"{epoch_i + 1:^7} | {step:^12} | {batch_loss / batch_counts:^12.6f} | "
-                            f"{'-':^10} | {'-':^9} | {time_elapsed:^9.2f}"
-                        )
-
-                    batch_loss, batch_lab_loss, batch_unl_loss, batch_counts = 0, 0, 0, 0
-                    t0_batch = time.time()
 
             # Calculate the average loss over the entire training data
             self.model.eval()
             avg_train_loss = total_loss / len(train_dataloader)
-            val_loss, val_accuracy, _, _ = self.score(dev_dataloader, dump_test_history=False)
-            time_elapsed = time.time() - t0_epoch
-
-            if is_student:
-                logging.debug("-" * 130)
-                logging.debug(
-                    f"{epoch_i + 1:^7} | {'-':^14} | {'-':^16} | {avg_train_loss:^11.6f} | "
-                    f"{'-':^15} | {'-':^13}| {val_loss:^10.6f} | "
-                    f"{val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
-                )
-                logging.debug("-" * 130)
-            else:
-                logging.debug("-" * 80)
-                logging.debug(
-                    f"{epoch_i + 1:^7} | {'-':^12} | {avg_train_loss:^12.6f} | "
-                    f"{val_loss:^10.6f} | {val_accuracy:^9.2f} | {time_elapsed:^9.2f}"
-                )
-                logging.debug("-" * 80)
-            logging.debug("\n")
+            val_loss, val_accuracy, _, _ = self.score(dev_dataloader)
 
             if val_loss < lowest_val_loss:
                 lowest_val_loss = val_loss
                 best_state_dict = self.model.state_dict()
 
-            historic_loss["loss"].append(loss_list)
-            historic_loss["labeled_loss"].append(lab_loss_list)
-            historic_loss["unlabeled_loss"].append(unl_loss_list)
-            historic_loss["unl_steps"].append(unl_step_list)
-            historic_loss["steps"].append(step_list)
-
-        if dump_train_history:
-            with open(os.path.join("logs", self.exp_name, self.augmentation_type, f"seed{self.seed}", "train", f"model{self.num_st_iter}.json"), "a+") as f:
-                json.dump(historic_loss, f)
-
         self.model.load_state_dict(best_state_dict) # load best model at the end
+        return avg_train_loss
 
     def predict_batch(self, dataloader: DataLoader) -> List[np.array]:
         self.model.eval()
@@ -337,7 +265,7 @@ class SelfTrainer:
         return probs, labels
 
     def score(
-        self, test_dataloader: DataLoader, dump_test_history: Optional[bool] = True
+        self, test_dataloader: DataLoader,
     ) -> Tuple[float, float, float]:
         self.model.eval()
 
@@ -367,20 +295,7 @@ class SelfTrainer:
         f1 = f1_score(true_labels, preds, average="macro", zero_division=0)
         acc = accuracy_score(true_labels, preds)
         val_loss = np.mean(val_loss)
-
-        if dump_test_history:
-            history = {"y_true": [], "y_pred": [], "logits_0": [], "logits_1": []}
-            history["y_true"] = [int(v) for v in true_labels.tolist()]
-            history["y_pred"] = [int(v) for v in preds.tolist()]
-            history["logits_0"] = logits.detach().cpu().numpy()[:, 0].tolist()
-            history["logits_1"] = logits.detach().cpu().numpy()[:, 1].tolist()
-            history["f1_score"] = f1
-            history["accuracy"] = acc
-            history["loss"] = val_loss
-
-            with open(os.path.join("logs", self.exp_name, self.augmentation_type, f"seed{self.seed}", "test", f"model{self.num_st_iter}.json"), "w") as f:
-                json.dump(history, f)
-
+        
         return val_loss, acc, f1, clf_report
 
     def __get_weak_labels(
@@ -475,7 +390,7 @@ class SelfTrainer:
         # train teacher model
         logging.info("Training Base Classifier...")
         start = time.time()
-        self.__train(
+        loss = self.__train(
             train_dataloader=train_dataloader,
             dev_dataloader=dev_dataloader,
             is_student=False,
@@ -483,10 +398,11 @@ class SelfTrainer:
 
         val_loss, acc, f1, clf_report = self.score(test_dataloader)
         wandb.log({
-            "val_loss": val_loss,
-            "val_f1": f1,
-            "val_acc": acc,
-            "iter": 0 
+                "train_loss": loss,
+                "val_loss": val_loss,
+                "val_f1": f1,
+                "val_acc": acc,
+                "num_inferred": 0
         })
 
         end = time.time()
@@ -506,10 +422,6 @@ class SelfTrainer:
             inferred_idxs, inferred_labels = self.__get_weak_labels(
                 unlabeled_dataloader, current_confidence_threshold
             )
-
-            wandb.log({
-                "num_inferred": len(inferred_idxs),
-            })
 
             text = unlabeled_df.loc[inferred_idxs, "text"].to_list()
 
@@ -541,7 +453,7 @@ class SelfTrainer:
 
             # train student model
             logging.info(f"Training Student {i} Classifier...")
-            self.__train(
+            loss = self.__train(
                 train_dataloader=train_dataloader,
                 dev_dataloader=dev_dataloader,
                 is_student=True,
@@ -552,10 +464,11 @@ class SelfTrainer:
             val_loss, acc, f1, clf_report = self.score(test_dataloader)
 
             wandb.log({
+                "train_loss": loss,
                 "val_loss": val_loss,
                 "val_f1": f1,
                 "val_acc": acc,
-                "iter": i 
+                "num_inferred": len(inferred_idxs),
             })
 
             end = time.time()
