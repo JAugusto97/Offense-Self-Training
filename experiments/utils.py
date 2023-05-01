@@ -139,6 +139,7 @@ def load_dataset(dataset_name, augmentation_type):
 
     unlabeled_df = unlabeled_df[cols]
     unlabeled_df = unlabeled_df.drop_duplicates(subset=cols)
+    unlabeled_df = unlabeled_df.dropna(subset=cols)
     unlabeled_df = unlabeled_df.reset_index(drop=True)
 
     loaded_log = f"""
