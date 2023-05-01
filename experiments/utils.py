@@ -82,6 +82,11 @@ def load_convabuse() -> Tuple[pd.DataFrame]:
         lambda x: x["prev_agent"] + "\n" + x["prev_user"] + "\n" + x["agent"] + "\n" + x["user"], axis=1
     )
 
+
+    train_df = train_df[["text", "is_abuse_majority"]].rename({"is_abuse_majority": "toxic"}, axis=1)
+    dev_df = dev_df[["text", "is_abuse_majority"]].rename({"is_abuse_majority": "toxic"}, axis=1)
+    test_df = test_df[["text", "is_abuse_majority"]].rename({"is_abuse_majority": "toxic"}, axis=1)
+    
     return train_df, dev_df, test_df
 
 
