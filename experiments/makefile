@@ -30,3 +30,25 @@ waseem:
 		--seed $(SEED) \
 		--augmentation_type $(AUGMENTATION_TYPE) \
 		--pretrained_bert_name $(PRETRAINED_NAME)
+
+corruption-exp:
+	python corruption_exp.py olidv1 \
+		--exp_name olid \
+		--batch_size $(BATCH_SIZE) \
+		--seed $(SEED) \
+		--augmentation_type $(AUGMENTATION_TYPE) \
+		--pretrained_bert_name $(PRETRAINED_NAME)
+
+	python corruption_exp.py convabuse \
+		--exp_name convabuse \
+		--batch_size $(BATCH_SIZE) \
+		--seed $(SEED) \
+		--augmentation_type $(AUGMENTATION_TYPE) \
+		--pretrained_bert_name $(PRETRAINED_NAME)
+
+	python corruption_exp.py waseem \
+		--exp_name waseem \
+		--batch_size $(BATCH_SIZE) \
+		--seed $(SEED) \
+		--augmentation_type $(AUGMENTATION_TYPE) \
+		--pretrained_bert_name $(PRETRAINED_NAME)
