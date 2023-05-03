@@ -339,6 +339,14 @@ class Transformer:
         unlabeled_dataloader_aug = DataLoader(weaklabelset_aug, sampler=sampler_aug, batch_size=self.batch_size)
         inferred_probs_aug, inferred_labels_aug = self.predict_batch(unlabeled_dataloader_aug)
         
+        vocab = set([token for sent in text for token in sent.split(" ")])
+        vocab_aug = set([token for sent in text_augmented for token in sent.split(" ")])
+
+        vocab_size = len(vocab)
+        added_vocab = len(vocab_aug.difference(vocab))
+        total_size = len(vocab_aug.union(vocab))
+        percent_increase = (total_size-vocab_size)/vocab_size
+
         total_corruption = (inferred_labels != inferred_labels_aug).sum()
         percentage_corruption = total_corruption/len(unlabeled_df)
 
@@ -354,5 +362,9 @@ class Transformer:
             "total_positive_corruption": pos_corruption,
             "percent_positive_corruption": pos_percent_corruption,
             "total_negative_corruption": neg_corruption,
-            "percent_negative_corruption": neg_percent_corruption
+            "percent_negative_corruption": neg_percent_corruption,
+            "original_vocab_size": vocab_size,
+            "total_vocab_size": total_size,
+            "vocab_increase": added_vocab,
+            "percent_vocab_increase": percent_increase
         })
