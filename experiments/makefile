@@ -21,3 +21,12 @@ convabuse:
 		--seed $(SEED) \
 		--augmentation_type $(AUGMENTATION_TYPE) \
 		--pretrained_bert_name $(PRETRAINED_NAME)
+
+waseem:
+	python train.py waseem \
+		--min_confidence_threshold 0.8 \
+		--exp_name waseem \
+		--batch_size $(BATCH_SIZE) \
+		--seed $(SEED) \
+		--augmentation_type $(AUGMENTATION_TYPE) \
+		--pretrained_bert_name $(PRETRAINED_NAME)
