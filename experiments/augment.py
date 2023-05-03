@@ -2,20 +2,7 @@
 import nlpaug.augmenter.sentence as nas
 import nlpaug.augmenter.word as naw
 import pandas as pd
-import re
-import string
-import unicodedata
-
-def normalize_tweet(text):
-    # remove mentions and URLs
-    text = re.sub(r"(?:\@|https?\://)\S+", "", text)
-    # remove punctuation
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    # remove accents
-    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8', 'ignore')
-    # remove extra whitespace
-    text = re.sub('\s+', ' ', text).strip()
-    return text
+from utils import normalize_tweet
 
 # %%
 df = pd.read_csv("datasets/tweets.csv")

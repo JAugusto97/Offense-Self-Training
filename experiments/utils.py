@@ -4,6 +4,9 @@ from sklearn.model_selection import train_test_split
 import logging
 import random
 from typing import Optional, Tuple
+import re
+import string
+import unicodedata
 
 import numpy as np
 import torch
@@ -82,6 +85,11 @@ def load_convabuse() -> Tuple[pd.DataFrame]:
         lambda x: x["prev_agent"] + "\n" + x["prev_user"] + "\n" + x["agent"] + "\n" + x["user"], axis=1
     )
 
+
+    train_df = train_df[["text", "is_abuse_majority"]].rename({"is_abuse_majority": "toxic"}, axis=1)
+    dev_df = dev_df[["text", "is_abuse_majority"]].rename({"is_abuse_majority": "toxic"}, axis=1)
+    test_df = test_df[["text", "is_abuse_majority"]].rename({"is_abuse_majority": "toxic"}, axis=1)
+    
     return train_df, dev_df, test_df
 
 
@@ -104,21 +112,18 @@ def load_olid() -> Tuple[pd.DataFrame]:
 
     return train_df, None, test_df
 
+def load_waseem() -> Tuple[pd.DataFrame]:
+    path = os.path.join("datasets", "waseem")
 
-def get_stratified_split(df: pd.DataFrame, num_split: int, seed: Optional[int] = None):
-    """splits the dataset into 4 equal sized stratified parts and returns one of them"""
-    splits = []
-    left_half, right_half = train_test_split(
-        df, train_size=0.5, shuffle=True, stratify=df.iloc[:, 1], random_state=seed
-    )
-    splits.extend(
-        train_test_split(left_half, train_size=0.5, shuffle=True, stratify=left_half.iloc[:, 1], random_state=seed)
-    )
-    splits.extend(
-        train_test_split(right_half, train_size=0.5, shuffle=True, stratify=right_half.iloc[:, 1], random_state=seed)
-    )
+    train_path = os.path.join(path, "waseem_train.csv")
+    dev_path = os.path.join(path, "waseem_dev.csv")
+    test_path = os.path.join(path, "waseem_test.csv")
 
-    return splits[num_split]
+    train_df = pd.read_csv(train_path)
+    dev_df = pd.read_csv(dev_path)
+    test_df = pd.read_csv(test_path)
+
+    return train_df, dev_df, test_df
 
 
 def load_dataset(dataset_name, augmentation_type):
@@ -128,6 +133,8 @@ def load_dataset(dataset_name, augmentation_type):
         train_df, dev_df, test_df = load_convabuse()
     elif dataset_name == "mhs":
         train_df, dev_df, test_df = load_mhs()
+    elif dataset_name == "waseem":
+        train_df, dev_df, test_df = load_waseem()
     else:
         raise Exception(f"{dataset_name} is not a valid dataset.")
 
@@ -139,6 +146,7 @@ def load_dataset(dataset_name, augmentation_type):
 
     unlabeled_df = unlabeled_df[cols]
     unlabeled_df = unlabeled_df.drop_duplicates(subset=cols)
+    unlabeled_df = unlabeled_df.dropna(subset=cols)
     unlabeled_df = unlabeled_df.reset_index(drop=True)
 
     loaded_log = f"""
@@ -164,3 +172,14 @@ def load_dataset(dataset_name, augmentation_type):
     logging.info(loaded_log)
 
     return train_df, dev_df, test_df, unlabeled_df
+
+def normalize_tweet(text):
+    # remove mentions and URLs
+    text = re.sub(r"(?:\@|https?\://)\S+", "", text)
+    # remove punctuation
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    # remove accents
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8', 'ignore')
+    # remove extra whitespace
+    text = re.sub('\s+', ' ', text).strip()
+    return text
