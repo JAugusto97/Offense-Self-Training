@@ -34,7 +34,7 @@ def get_args():
 
     # ST args
     parser.add_argument("--min_confidence_threshold", default=0.8, type=float)
-    parser.add_argument("--num_st_iters", default=5, type=int)
+    parser.add_argument("--num_st_iters", default=3, type=int)
     parser.add_argument("--increase_attention_dropout_amount", default=None, type=float)
     parser.add_argument("--increase_classifier_dropout_amount", default=None, type=float)
     parser.add_argument("--increase_confidence_threshold_amount", default=None, type=float)
