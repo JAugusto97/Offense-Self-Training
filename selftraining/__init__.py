@@ -1,3 +1,3 @@
 from .selftraining import SelfTrainer
-
-__all__ = ["SelfTrainer"]
+from .transformer import Transformer
+__all__ = ["SelfTrainer", "Transformer"]

@@ -1,11 +1,8 @@
-# %%
 import sys
 
 sys.path.append("..")
 
 from selftraining import Transformer
-
-# %%
 import os
 import argparse
 import time
@@ -14,7 +11,6 @@ from experiments import load_dataset, set_seed, get_logger
 import torch
 import wandb
 
-# %%
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", type=str)
@@ -39,58 +35,63 @@ def get_args():
     return args
 
 
-# %%
-args = get_args()
-set_seed(args.seed)
-
-# %%
-
-log_path = os.path.join(
-    "logs",
-    args.exp_name,
-    "default" if args.augmentation_type is None else args.augmentation_type,
-    f"seed{args.seed}"
-)
-
-train_path = os.path.join(log_path, "train")
-test_path = os.path.join(log_path, "test")
-if not os.path.exists(log_path):
-    os.makedirs(log_path)
-if not os.path.exists(train_path):
-    os.mkdir(train_path)
-if not os.path.exists(test_path):
-    os.mkdir(test_path)
+if __name__ == "__main__":
+    args = get_args()
+    set_seed(args.seed)
 
 
-logger = get_logger(level=args.loglevel, filename=os.path.join(log_path, "run.log"))
-current_device = torch.cuda.current_device()
-gpu_name = torch.cuda.get_device_name(current_device) if torch.cuda.is_available() else "cpu"
-logger.info(f"Device: {gpu_name}")
+    log_path = os.path.join(
+        "logs",
+        "corruption_exp",
+        args.exp_name,
+        args.augmentation_type,
+        f"seed{args.seed}"
+    )
 
-train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset, augmentation_type=args.augmentation_type)
-weak_label_df = weak_label_df.sample(500).reset_index(drop=True)
+    wandb.init(
+        project="selftrain-corruption",
+        name=args.dataset + f"-{'default' if args.augmentation_type is None else args.augmentation_type}",
+        config=vars(args)
+    )
 
-st = Transformer(
-    pretrained_bert_name=args.pretrained_bert_name,
-    device=args.device,
-    classifier_dropout=args.classifier_dropout,
-    attention_dropout=args.attention_dropout,
-    max_seq_len=args.max_seq_len,
-    batch_size=args.batch_size,
-    num_train_epochs=args.num_train_epochs,
-    learning_rate=args.learning_rate,
-    warmup_ratio=args.warmup_ratio,
-    weight_decay=args.weight_decay,
-    augmentation_type=args.augmentation_type,
-    seed=args.seed,
-    exp_name=args.exp_name
-)
+    train_path = os.path.join(log_path, "train")
+    test_path = os.path.join(log_path, "test")
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
+    if not os.path.exists(train_path):
+        os.mkdir(train_path)
+    if not os.path.exists(test_path):
+        os.mkdir(test_path)
 
-st.fit(
-    train_df=train_df,
-    dev_df=dev_df,
-    test_df=test_df,
-    unlabeled_df=weak_label_df
-)
+
+    logger = get_logger(level=args.loglevel, filename=os.path.join(log_path, "run.log"))
+    current_device = torch.cuda.current_device()
+    gpu_name = torch.cuda.get_device_name(current_device) if torch.cuda.is_available() else "cpu"
+    logger.info(f"Device: {gpu_name}")
+
+    train_df, dev_df, test_df, weak_label_df = load_dataset(args.dataset, augmentation_type=args.augmentation_type)
+
+    st = Transformer(
+        pretrained_bert_name=args.pretrained_bert_name,
+        device=args.device,
+        classifier_dropout=args.classifier_dropout,
+        attention_dropout=args.attention_dropout,
+        max_seq_len=args.max_seq_len,
+        batch_size=args.batch_size,
+        num_train_epochs=args.num_train_epochs,
+        learning_rate=args.learning_rate,
+        warmup_ratio=args.warmup_ratio,
+        weight_decay=args.weight_decay,
+        augmentation_type=args.augmentation_type,
+        seed=args.seed,
+        exp_name=args.exp_name
+    )
+
+    st.fit(
+        train_df=train_df,
+        dev_df=dev_df,
+        test_df=test_df,
+        unlabeled_df=weak_label_df
+    )
 
 

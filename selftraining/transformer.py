@@ -12,6 +12,7 @@ from scipy.special import softmax
 from torch.utils.data import DataLoader, RandomSampler, Dataset
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, BatchEncoding, get_scheduler
+import wandb
 
 
 class BertDataset(Dataset):
@@ -329,15 +330,29 @@ class Transformer:
         weaklabelset = BertDataset(encodings=text_tokenized, labels=None)
         sampler = RandomSampler(weaklabelset)
         unlabeled_dataloader = DataLoader(weaklabelset, sampler=sampler, batch_size=self.batch_size)
-        inferred_labels, inferred_probs = self.predict_batch(unlabeled_dataloader)
+        inferred_probs, inferred_labels = self.predict_batch(unlabeled_dataloader)
 
         text_augmented = unlabeled_df.loc[:, self.augmentation_type].to_list()
         text_aug_tokenized = self.tokenize(text_augmented)
         weaklabelset_aug = BertDataset(encodings=text_aug_tokenized, labels=None)
         sampler_aug = RandomSampler(weaklabelset_aug)
         unlabeled_dataloader_aug = DataLoader(weaklabelset_aug, sampler=sampler_aug, batch_size=self.batch_size)
-        inferred_labels_aug, inferred_probs_aug = self.predict_batch(unlabeled_dataloader_aug)
+        inferred_probs_aug, inferred_labels_aug = self.predict_batch(unlabeled_dataloader_aug)
         
-        import ipdb; ipdb.set_trace()
-        
-        
+        total_corruption = (inferred_labels != inferred_labels_aug).sum()
+        percentage_corruption = total_corruption/len(unlabeled_df)
+
+        pos_corruption = ((inferred_labels == 0) & (inferred_labels_aug == 1)).sum()
+        pos_percent_corruption = pos_corruption/total_corruption
+
+        neg_corruption = ((inferred_labels == 1) & (inferred_labels_aug == 0)).sum()
+        neg_percent_corruption = neg_corruption/total_corruption
+
+        wandb.log({
+            "total_corruption": total_corruption,
+            "percentage_corruption": percentage_corruption,
+            "total_positive_corruption": pos_corruption,
+            "percent_positive_corruption": pos_percent_corruption,
+            "total_negative_corruption": neg_corruption,
+            "percent_negative_corruption": neg_percent_corruption
+        })
