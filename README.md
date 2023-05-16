@@ -1,6 +1,6 @@
 # Offense-Self-Training 
 ## Abstract
-Online social media is rife with offensive and hateful comments, prompting the need of their automatic detection given the sheer amount of posts created at each second. However, collecting high-quality human-labeled datasets in order to train machine learning models for this task is difficult and costly, especially because (i) non-offensive posts are significantly more frequent than offensive ones and (ii) repeatedly exposing annotators to offensive content can be harmful to their mental health. Aiming to mitigate these limitations, this paper innovates by employing self-training, a semi-supervised technique that aggregates weakly-labeled instances to a human-labeled training set. We experiment with default self-training and the recent variation known as noisy student, which adds data augmentation during the self-training. Our results show that self-training significantly improves the model’s performance in three datasets offensive and hate speech detection, with different classification labels. Despite being successfully applied in other NLP tasks, noisy student does not consistently outperform the default self-training method in our experiments. We analyse the negative results obtained by the noisy student method, providing useful insights for other NLP tasks.
+Online social media is rife with offensive and hateful comments, prompting the need for their automatic detection given the sheer amount of posts created every second. Creating high-quality human-labelled datasets for this task is difficult and costly, especially because non-offensive posts are significantly more frequent than offensive ones. However, unlabelled data is abundant, easier, and cheaper to obtain. In this scenario, self-training methods make use of weakly-labelled examples to increase the amount of training data. Recent "noisy" self-training approaches incorporate data augmentation techniques to ensure prediction consistency and increase robustness against noisy data and adversarial attacks. In this work, we experiment with default and noisy self-training using three different textual data augmentation techniques across five different pretrained BERT architectures varying in size. We evaluate our experiments on two offensive/hate-speech datasets and demonstrate that (i) self-training consistently improves performance regardless of model size, resulting in up to +1.5% F1-macro on both datasets, and (ii) noisy self-training with textual data augmentations, despite being successfully applied in similar settings, decreases performance on offensive and hate-speech domains when compared to the default self-train method, even with state-of-the-art augmentations such as backtranslation. Finally, we discuss future research ideas to mitigate the issues found with this work.
 
 
 
@@ -17,16 +17,7 @@ Online social media is rife with offensive and hateful comments, prompting the n
     >cd experiments
 3. Download the data sets.
     >make download-datasets
-4. Run one of the experiments:
-    >make experiment-name
-
-    Where "experiment-name" should be one of the following:
-    * olid-default
-    * olid-ns
-    * convabuse-default
-    * convabuse-ns
-    * mhs-default
-    * mhs-ns
+4. Run one of the experiments available at the makefile with its correspoding parameters.
 
 
 ## Citing
